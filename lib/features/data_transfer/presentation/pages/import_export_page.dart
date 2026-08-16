@@ -21,5 +21,5 @@ class _ImportExportPageState extends State<ImportExportPage> {
     const SizedBox(height: 28),
     const Text('Remarque', style: TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 6),
     const Text('Pour l’import Google Sheets, la feuille doit être accessible en lecture. Les colonnes reconnues sont notamment : Désignation/Nom, Code-barres, Prix et Stock.'),
-  ]);
+  ]));
 }

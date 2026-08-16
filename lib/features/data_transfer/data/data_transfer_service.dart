@@ -10,7 +10,7 @@ import '../../billing/domain/entities/cart_item.dart';
 
 class DataTransferService {
   static Future<int> importProductsFromExcel() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx', 'xls'], withData: true);
+    final result = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx', 'xls'], withData: true);
     if (result == null || result.files.single.bytes == null) return 0;
     return importProductsFromBytes(result.files.single.bytes!);
   }
@@ -84,7 +84,7 @@ class DataTransferService {
     }
     final bytes = excel.encode();
     if (bytes == null) throw Exception('Impossible de générer le fichier Excel.');
-    final path = await FilePicker.platform.saveFile(dialogTitle: 'Enregistrer la facture', fileName: 'facture_${DateTime.now().millisecondsSinceEpoch}.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'], bytes: bytes);
+    final path = await FilePicker.saveFile(dialogTitle: 'Enregistrer la facture', fileName: 'facture_${DateTime.now().millisecondsSinceEpoch}.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'], bytes: bytes);
     if (path == null) return;
   }
 
@@ -105,7 +105,17 @@ class DataTransferService {
     return Uri.parse('https://docs.google.com/spreadsheets/d/${match.group(1)}/gviz/tq').replace(queryParameters: params);
   }
 
-  static String _value(CellValue? value) => switch (value) { null => '', TextCellValue v => v.value, IntCellValue v => v.value.toString(), DoubleCellValue v => v.value.toString(), BoolCellValue v => v.value.toString(), DateCellValue v => v.toString(), DateTimeCellValue v => v.toString(), TimeCellValue v => v.toString(), FormulaCellValue v => v.formula.toString() };
+  static String _value(CellValue? value) => switch (value) {
+    null => '',
+    TextCellValue v => v.value.toString(),
+    IntCellValue v => v.value.toString(),
+    DoubleCellValue v => v.value.toString(),
+    BoolCellValue v => v.value.toString(),
+    DateCellValue v => v.toString(),
+    DateTimeCellValue v => v.toString(),
+    TimeCellValue v => v.toString(),
+    FormulaCellValue v => v.formula.toString(),
+  };
 
   static List<List<String>> _parseCsv(String text) {
     final rows = <List<String>>[]; final row = <String>[]; final cell = StringBuffer(); bool quoted = false;
