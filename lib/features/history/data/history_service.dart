@@ -23,7 +23,7 @@ class HistoryService {
       'date': DateTime.now().toIso8601String(),
       'total': total,
       'currency': 'DZD',
-      'items': items.map((item) => {
+      'items': items.map<Map<String, dynamic>>((CartItem item) => <String, dynamic>{
         'produit': item.product.name,
         'codeBarres': item.product.barcode,
         'quantite': item.quantity,
