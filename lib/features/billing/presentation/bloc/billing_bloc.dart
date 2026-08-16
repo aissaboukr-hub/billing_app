@@ -5,6 +5,7 @@ import 'package:billing_app/features/product/domain/entities/product.dart';
 import 'package:billing_app/features/product/domain/usecases/product_usecases.dart';
 import '../../../../core/utils/printer_helper.dart';
 import '../../../../core/data/hive_database.dart';
+import '../../../history/data/history_service.dart';
 
 part 'billing_event.dart';
 part 'billing_state.dart';
@@ -127,6 +128,7 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
           total: state.totalAmount,
           footer: event.footer);
 
+      await HistoryService.addSale(items: state.cartItems, total: state.totalAmount);
       emit(state.copyWith(isPrinting: false, printSuccess: true));
     } catch (e) {
       emit(state.copyWith(

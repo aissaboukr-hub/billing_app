@@ -70,31 +70,56 @@ class DataTransferService {
     return imported;
   }
 
-  static Future<void> exportSaleToExcel({required List<CartItem> items, required double total}) async {
+  static Future<void> exportHistoryToExcel({required List<Map<String, dynamic>> history}) async {
+    if (history.isEmpty) throw Exception('Aucune opération à exporter.');
     final excel = Excel.createExcel();
-    final sheet = excel['Ventes'];
-    final rows = [
-      ['Produit', 'Code-barres', 'Quantité', 'Prix unitaire (DA)', 'Total (DA)'],
-      ...items.map((i) => [i.product.name, i.product.barcode, i.quantity, i.product.price, i.total]),
-      ['TOTAL', '', '', '', total],
+    final sheet = excel['Historique'];
+    final rows = <List<String>>[
+      ['ID', 'Date', 'Type', 'Produit', 'Code-barres', 'Quantité', 'Prix unitaire (DA)', 'Total ligne (DA)', 'Total opération (DA)', 'Devise'],
     ];
+    for (final operation in history) {
+      final items = (operation['items'] as List?) ?? const [];
+      if (items.isEmpty) {
+        rows.add([
+          '${operation['id'] ?? ''}', '${operation['date'] ?? ''}', '${operation['type'] ?? ''}', '', '', '', '', '', '${operation['total'] ?? 0}', '${operation['currency'] ?? 'DZD'}'
+        ]);
+      } else {
+        for (final rawItem in items) {
+          final item = Map<String, dynamic>.from(rawItem as Map);
+          rows.add([
+            '${operation['id'] ?? ''}', '${operation['date'] ?? ''}', '${operation['type'] ?? ''}', '${item['produit'] ?? ''}', '${item['codeBarres'] ?? ''}', '${item['quantite'] ?? 0}', '${item['prixUnitaire'] ?? 0}', '${item['total'] ?? 0}', '${operation['total'] ?? 0}', '${operation['currency'] ?? 'DZD'}'
+          ]);
+        }
+      }
+    }
     for (var r = 0; r < rows.length; r++) {
       for (var c = 0; c < rows[r].length; c++) {
-        sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r)).value = TextCellValue(rows[r][c].toString());
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: c, rowIndex: r)).value = TextCellValue(rows[r][c]);
       }
     }
     final bytes = excel.encode();
     if (bytes == null) throw Exception('Impossible de générer le fichier Excel.');
-    final path = await FilePicker.saveFile(dialogTitle: 'Enregistrer la facture', fileName: 'facture_${DateTime.now().millisecondsSinceEpoch}.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'], bytes: Uint8List.fromList(bytes));
-    if (path == null) return;
+    await FilePicker.saveFile(
+      dialogTitle: 'Exporter l’historique',
+      fileName: 'historique_${DateTime.now().millisecondsSinceEpoch}.xlsx',
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+      bytes: Uint8List.fromList(bytes),
+    );
   }
 
-  static Future<void> exportSaleToGoogleSheets({required List<CartItem> items, required double total, required String endpoint}) async {
+  static Future<void> exportHistoryToGoogleSheets({required List<Map<String, dynamic>> history, required String endpoint}) async {
     final url = endpoint.trim();
     if (url.isEmpty) throw Exception('Configurez d’abord l’URL Google Apps Script dans les paramètres.');
-    final payload = {'date': DateTime.now().toIso8601String(), 'currency': 'DZD', 'total': total, 'items': items.map((i) => {'produit': i.product.name, 'codeBarres': i.product.barcode, 'quantite': i.quantity, 'prixUnitaire': i.product.price, 'total': i.total}).toList()};
-    final response = await http.post(Uri.parse(url), headers: {'Content-Type': 'application/json'}, body: jsonEncode(payload)).timeout(const Duration(seconds: 20));
-    if (response.statusCode < 200 || response.statusCode >= 300) throw Exception('Échec de l’export Google Sheets (${response.statusCode}).');
+    if (history.isEmpty) throw Exception('Aucune opération à synchroniser.');
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'currency': 'DZD', 'history': history}),
+    ).timeout(const Duration(seconds: 20));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Échec de la synchronisation Google Sheets (${response.statusCode}).');
+    }
   }
 
   static Uri _googleCsvUri(String link) {

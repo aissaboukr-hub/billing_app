@@ -7,8 +7,6 @@ import 'package:pretty_qr_code/pretty_qr_code.dart';
 import '../../../shop/presentation/bloc/shop_bloc.dart';
 import '../bloc/billing_bloc.dart';
 import '../../../../core/utils/app_formatters.dart';
-import '../../../data_transfer/data/data_transfer_service.dart';
-import '../../../../core/data/hive_database.dart';
 
 class CheckoutPage extends StatefulWidget {
   const CheckoutPage({super.key});
@@ -227,11 +225,14 @@ class _CheckoutPageState extends State<CheckoutPage> {
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                            child: Row(children: [
-                              Expanded(child: OutlinedButton.icon(onPressed: billingState.cartItems.isEmpty ? null : () async { try { await DataTransferService.exportSaleToExcel(items: billingState.cartItems, total: billingState.totalAmount); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Facture Excel exportée.'))); } catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red)); } }, icon: const Icon(Icons.table_view), label: const Text('Excel'))),
-                              const SizedBox(width: 8),
-                              Expanded(child: OutlinedButton.icon(onPressed: billingState.cartItems.isEmpty ? null : () async { final endpoint = HiveDatabase.settingsBox.get('google_sheets_export_url', defaultValue: '') as String; try { await DataTransferService.exportSaleToGoogleSheets(items: billingState.cartItems, total: billingState.totalAmount, endpoint: endpoint); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vente envoyée vers Google Sheets.'))); } catch (e) { if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red)); } }, icon: const Icon(Icons.cloud_upload), label: const Text('Google Sheets'))),
-                            ]),
+                            child: SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => context.push('/history'),
+                                icon: const Icon(Icons.history),
+                                label: const Text('Consulter / exporter l’historique'),
+                              ),
+                            ),
                           ),
                           PrimaryButton(
                             onPressed: () {

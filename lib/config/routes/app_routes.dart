@@ -10,6 +10,7 @@ import '../../features/billing/presentation/pages/checkout_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/data/auth_service.dart';
 import '../../features/data_transfer/presentation/pages/import_export_page.dart';
+import '../../features/history/presentation/pages/history_page.dart';
 import '../../features/product/domain/entities/product.dart';
 
 GoRouter buildRouter() {
@@ -44,6 +45,7 @@ GoRouter buildRouter() {
       builder: (context, state) => const SettingsPage(),
     ),
     GoRoute(path: '/import-export', builder: (context, state) => const ImportExportPage()),
+    GoRoute(path: '/history', builder: (context, state) => const HistoryPage()),
     GoRoute(
       path: '/products',
       builder: (context, state) => const ProductListPage(),

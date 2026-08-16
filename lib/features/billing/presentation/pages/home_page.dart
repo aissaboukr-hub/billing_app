@@ -9,6 +9,8 @@ import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../domain/entities/cart_item.dart';
 import '../../../../core/utils/app_formatters.dart';
+import '../../../product/presentation/bloc/product_bloc.dart';
+import '../../../product/domain/entities/product.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -25,6 +27,8 @@ class _HomePageState extends State<HomePage> {
 
   bool _isCameraOn = true;
   bool _isFlashOn = false;
+  bool _searchMode = false;
+  final TextEditingController _searchController = TextEditingController();
 
   // Cooldown mapping to prevent rapid firing of the same barcode
   final Map<String, DateTime> _lastScanTimes = {};
@@ -32,6 +36,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _scannerController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -124,6 +129,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildScannerSection() {
+    if (_searchMode) return _buildSearchSection();
     return Container(
       color: Colors.black,
       child: Stack(
@@ -141,6 +147,23 @@ class _HomePageState extends State<HomePage> {
             right: 16,
             child: Column(
               children: [
+                _buildOverlayButton(
+                  icon: Icons.manage_search,
+                  onPressed: () {
+                    setState(() => _searchMode = true);
+                    _scannerController.stop();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
+                  icon: Icons.history,
+                  onPressed: () async {
+                    _scannerController.stop();
+                    await context.push('/history');
+                    if (_isCameraOn && mounted && !_searchMode) _scannerController.start();
+                  },
+                ),
+                const SizedBox(height: 16),
                 _buildOverlayButton(
                   icon: Icons.settings,
                   onPressed: () async {
@@ -201,6 +224,50 @@ class _HomePageState extends State<HomePage> {
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchSection() {
+    return Container(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16, 16, 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('Rechercher un produit', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
+          IconButton(onPressed: () { setState(() => _searchMode = false); if (_isCameraOn) _scannerController.start(); }, icon: const Icon(Icons.qr_code_scanner), tooltip: 'Scanner'),
+          IconButton(onPressed: () { setState(() => _searchMode = false); if (_isCameraOn) _scannerController.start(); }, icon: const Icon(Icons.close)),
+        ]),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _searchController,
+          autofocus: true,
+          decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: 'Nom ou désignation du produit', suffixIcon: IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear))),
+          onChanged: (_) => setState(() {}),
+        ),
+        const SizedBox(height: 12),
+        Expanded(child: BlocBuilder<ProductBloc, ProductState>(builder: (context, state) {
+          final query = _searchController.text.trim().toLowerCase();
+          final products = query.isEmpty ? state.products.take(20).toList() : state.products.where((p) => p.name.toLowerCase().contains(query) || p.barcode.toLowerCase().contains(query)).take(30).toList();
+          if (products.isEmpty) return const Center(child: Text('Aucun produit trouvé.'));
+          return ListView.separated(
+            itemCount: products.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final product = products[index];
+              return ListTile(
+                leading: const CircleAvatar(child: Icon(Icons.inventory_2)),
+                title: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                subtitle: Text(product.barcode),
+                trailing: Text(AppFormatters.price(product.price), style: const TextStyle(fontWeight: FontWeight.bold)),
+                onTap: () {
+                  context.read<BillingBloc>().add(AddProductToCartEvent(product));
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name} ajouté au panier')));
+                },
+              );
+            },
+          );
+        })),
+      ]),
     );
   }
 
