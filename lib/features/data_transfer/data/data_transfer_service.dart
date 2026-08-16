@@ -105,7 +105,7 @@ class DataTransferService {
     return Uri.parse('https://docs.google.com/spreadsheets/d/${match.group(1)}/gviz/tq').replace(queryParameters: params);
   }
 
-  static String _value(CellValue? value) => switch (value) { null => '', TextCellValue v => v.value, IntCellValue v => v.value.toString(), DoubleCellValue v => v.value.toString(), BoolCellValue v => v.value.toString(), DateCellValue v => v.toString(), DateTimeCellValue v => v.toString(), TimeCellValue v => v.toString(), FormulaCellValue v => v.formula };
+  static String _value(CellValue? value) => switch (value) { null => '', TextCellValue v => v.value, IntCellValue v => v.value.toString(), DoubleCellValue v => v.value.toString(), BoolCellValue v => v.value.toString(), DateCellValue v => v.toString(), DateTimeCellValue v => v.toString(), TimeCellValue v => v.toString(), FormulaCellValue v => v.formula.toString() };
 
   static List<List<String>> _parseCsv(String text) {
     final rows = <List<String>>[]; final row = <String>[]; final cell = StringBuffer(); bool quoted = false;
