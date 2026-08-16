@@ -1,6 +1,6 @@
 import 'package:uuid/uuid.dart';
 import '../../../../core/data/hive_database.dart';
-import '../../../billing/domain/entities/cart_item.dart';
+import '../../billing/domain/entities/cart_item.dart';
 
 class HistoryService {
   static const _key = 'operations_history';
