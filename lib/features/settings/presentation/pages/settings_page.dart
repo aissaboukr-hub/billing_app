@@ -8,6 +8,8 @@ import '../../../shop/presentation/bloc/shop_bloc.dart';
 import '../bloc/printer_bloc.dart';
 import '../bloc/printer_event.dart';
 import '../bloc/printer_state.dart';
+import '../../../auth/data/auth_service.dart';
+import '../../../../core/data/hive_database.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -28,7 +30,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings',
+        title: const Text('Paramètres',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -98,20 +100,20 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 24),
 
             // Management Section
-            _buildSectionHeader('Management'),
+            _buildSectionHeader('Gestion'),
             _buildListGroup(
               children: [
                 _buildListItem(
                   icon: Icons.qr_code_scanner,
-                  title: 'Products',
-                  subtitle: 'Manage stock and barcodes',
+                  title: 'Produits',
+                  subtitle: 'Gérer le stock et les codes-barres',
                   onTap: () => context.push('/products'),
                 ),
                 _buildDivider(),
                 _buildListItem(
                   icon: Icons.storefront,
-                  title: 'Shop Details',
-                  subtitle: 'Edit business info & address',
+                  title: 'Informations du commerce',
+                  subtitle: 'Modifier les informations et l’adresse',
                   onTap: () => context.push('/shop'),
                 ),
               ],
@@ -120,7 +122,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const SizedBox(height: 24),
 
             // Hardware Section
-            _buildSectionHeader('Hardware'),
+            _buildSectionHeader('Matériel'),
             BlocConsumer<PrinterBloc, PrinterState>(
               listener: (context, state) {
                 if (state.errorMessage != null) {
@@ -129,7 +131,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       backgroundColor: Colors.red));
                 } else if (state.status == PrinterStatus.connected) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text('Connected to printer'),
+                      content: Text('Imprimante connectée'),
                       backgroundColor: Colors.green));
                 }
               },
@@ -138,13 +140,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   children: [
                     _buildListItem(
                       icon: Icons.print,
-                      title: 'Print Device',
+                      title: 'Imprimante',
                       subtitleWidget: Row(
                         children: [
                           Text(
                             state.connectedMac != null
-                                ? (state.connectedName ?? 'Printer connected')
-                                : 'No printer connected',
+                                ? (state.connectedName ?? 'Imprimante connectée')
+                                : 'Aucune imprimante connectée',
                             style: TextStyle(
                                 fontSize: 12, color: Colors.grey[500]),
                           ),
@@ -158,7 +160,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(color: Colors.teal[200]!)),
                               child: Text(
-                                'CONNECTED',
+                                'CONNECTÉE',
                                 style: TextStyle(
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,
@@ -205,7 +207,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               child: Text(
-                "To connect a new device, tap on the Settings gear to pair in phone's Bluetooth settings, then return and hit Refresh.",
+                "Pour connecter un nouvel appareil, ouvrez les réglages Bluetooth du téléphone, effectuez l’appairage, puis revenez ici et actualisez.",
                 style: TextStyle(
                     fontSize: 11,
                     fontStyle: FontStyle.italic,
@@ -213,11 +215,28 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
 
+            const SizedBox(height: 24),
+            _buildSectionHeader('Données'),
+            _buildListGroup(children: [
+              _buildListItem(icon: Icons.import_export, title: 'Import / Export', subtitle: 'Produits, factures et Google Sheets', onTap: () => context.push('/import-export')),
+              _buildDivider(),
+              _buildListItem(icon: Icons.cloud_upload, title: 'URL Google Sheets', subtitle: 'Configurer l’URL Google Apps Script pour les ventes', onTap: _configureGoogleSheets),
+            ]),
+            const SizedBox(height: 16),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: OutlinedButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) context.go('/login'); }, icon: const Icon(Icons.logout), label: const Text('Se déconnecter'))),
             const SizedBox(height: 48),
           ],
         ),
       ),
     );
+  }
+
+
+  Future<void> _configureGoogleSheets() async {
+    final controller = TextEditingController(text: HiveDatabase.settingsBox.get('google_sheets_export_url', defaultValue: '') as String);
+    final value = await showDialog<String>(context: context, builder: (context) => AlertDialog(title: const Text('Google Sheets'), content: TextField(controller: controller, decoration: const InputDecoration(labelText: 'URL Google Apps Script', hintText: 'https://script.google.com/macros/s/.../exec')), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Annuler')), FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Enregistrer'))]));
+    controller.dispose();
+    if (value != null) await HiveDatabase.settingsBox.put('google_sheets_export_url', value);
   }
 
   Widget _buildSectionHeader(String title) {

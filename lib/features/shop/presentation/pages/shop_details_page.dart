@@ -79,7 +79,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
         appBar: AppBar(
-          title: const Text('Shop Details'),
+          title: const Text('Informations du commerce'),
         ),
         body: BlocConsumer<ShopBloc, ShopState>(
           listener: (context, state) {
@@ -87,7 +87,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
               _updateControllers(state.shop);
             } else if (state is ShopOperationSuccess) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                  content: Text('Shop details saved!'),
+                  content: Text('Informations enregistrées !'),
                   backgroundColor: Colors.green));
               context.pop();
             } else if (state is ShopError) {
@@ -109,7 +109,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('General Information',
+                    Text('Informations générales',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -124,21 +124,21 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
                       style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                     ),
                     const SizedBox(height: 24),
-                    const InputLabel(text: 'Shop Name'),
+                    const InputLabel(text: 'Nom du commerce'),
                     _buildTextField(
                       controller: _nameController,
                       hint: 'e.g. QuickMart Superstore',
                       validator: AppValidators.required('Required'),
                     ),
                     const SizedBox(height: 15),
-                    const InputLabel(text: 'Address Line 1'),
+                    const InputLabel(text: 'Adresse - ligne 1'),
                     _buildTextField(
                       controller: _address1Controller,
                       hint: 'Samrajpet, Mecheri',
                       validator: AppValidators.required('Required'),
                     ),
                     const SizedBox(height: 15),
-                    const InputLabel(text: 'Address Line 2 (Optional)'),
+                    const InputLabel(text: 'Adresse - ligne 2 (facultative)'),
                     _buildTextField(
                       controller: _address2Controller,
                       hint: 'Salem - 636453',
@@ -162,7 +162,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const InputLabel(text: 'Receipt Footer Text'),
-                        Text('Max 150 chars',
+                        Text('Maximum 150 caractères',
                             style: TextStyle(
                                 fontSize: 11, color: Colors.grey[400])),
                       ],
@@ -182,7 +182,7 @@ class _ShopDetailsPageState extends State<ShopDetailsPage> {
         bottomNavigationBar: PrimaryButton(
           onPressed: _saveShop,
           icon: Icons.save,
-          label: 'Save Details',
+          label: 'Enregistrer',
         ));
   }
 

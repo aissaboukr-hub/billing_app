@@ -102,7 +102,7 @@ class PrinterBloc extends Bloc<PrinterEvent, PrinterState> {
     } else {
       emit(state.copyWith(
         status: PrinterStatus.connectionFailure,
-        errorMessage: 'Failed to connect to printer',
+        errorMessage: 'Impossible de connecter l’imprimante',
       ));
     }
   }

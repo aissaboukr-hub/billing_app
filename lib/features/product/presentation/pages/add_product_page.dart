@@ -9,6 +9,7 @@ import '../bloc/product_bloc.dart';
 import '../../domain/entities/product.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_validators.dart';
+import '../../../../core/utils/app_formatters.dart';
 
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -43,7 +44,7 @@ class _AddProductPageState extends State<AddProductPage> {
       if (existingProduct != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Product with barcode "$_barcode" already exists!'),
+            content: Text('Le produit avec le code-barres "$_barcode" existe déjà !'),
             backgroundColor: Colors.red,
           ),
         );
@@ -73,7 +74,7 @@ class _AddProductPageState extends State<AddProductPage> {
                 size: 28, color: Theme.of(context).primaryColor),
             onPressed: () => context.pop(),
           ),
-          title: const Text('Add Product',
+          title: const Text('Ajouter un produit',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           centerTitle: true,
         ),
@@ -85,7 +86,7 @@ class _AddProductPageState extends State<AddProductPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const InputLabel(text: 'Barcode'),
+                  const InputLabel(text: 'Code-barres'),
                   Row(
                     children: [
                       Expanded(
@@ -93,10 +94,10 @@ class _AddProductPageState extends State<AddProductPage> {
                           key: ValueKey(_barcode),
                           initialValue: _barcode,
                           decoration: const InputDecoration(
-                            hintText: 'Scan or enter barcode',
+                            hintText: 'Scanner ou saisir le code-barres',
                           ),
                           validator:
-                              AppValidators.required('Please enter a barcode'),
+                              AppValidators.required('Veuillez saisir un code-barres'),
                           onSaved: (value) => _barcode = value!,
                         ),
                       ),
@@ -116,26 +117,26 @@ class _AddProductPageState extends State<AddProductPage> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text('Tap the icon to open camera scanner',
+                  const Text('Touchez l’icône pour ouvrir le scanner',
                       style: TextStyle(fontSize: 12, color: Color(0xFF4C669A))),
                   const SizedBox(height: 24),
-                  const InputLabel(text: 'Product Name'),
+                  const InputLabel(text: 'Nom du produit'),
                   TextFormField(
                     decoration: const InputDecoration(
-                      hintText: 'e.g. Basmati Rice',
+                      hintText: 'Ex. Riz Basmati',
                     ),
                     textCapitalization: TextCapitalization.words,
-                    validator: AppValidators.required('Please enter a name'),
+                    validator: AppValidators.required('Veuillez saisir un nom'),
                     onSaved: (value) => _name = value!,
                   ),
                   const SizedBox(height: 24),
-                  const InputLabel(text: 'Price'),
+                  const InputLabel(text: 'Prix (DA)'),
                   TextFormField(
                     keyboardType:
                         const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                       hintText: '0.00',
-                      prefixText: '₹ ',
+                      prefixText: 'DA ',
                       prefixStyle: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
@@ -152,7 +153,7 @@ class _AddProductPageState extends State<AddProductPage> {
         bottomNavigationBar: PrimaryButton(
           onPressed: _submit,
           icon: Icons.add_circle,
-          label: 'Add Product',
+          label: 'Ajouter un produit',
         ));
   }
 }

@@ -53,7 +53,7 @@ class _ScannerPageState extends State<ScannerPage> {
                 size: 28, color: Theme.of(context).primaryColor),
             onPressed: () => context.pop(),
           ),
-          title: const Text('Scan Barcode',
+          title: const Text('Scanner un code-barres',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
       body: Stack(
         children: [

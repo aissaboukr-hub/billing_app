@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'config/routes/app_routes.dart';
 import 'core/data/hive_database.dart';
@@ -14,11 +15,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HiveDatabase.init();
   await di.init();
-  runApp(const MyApp());
+  runApp(MyApp(router: buildRouter()));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final GoRouter router;
+  const MyApp({super.key, required this.router});
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +37,8 @@ class MyApp extends StatelessWidget {
             create: (context) => di.sl<PrinterBloc>()..add(InitPrinterEvent())),
       ],
       child: MaterialApp.router(
-        title: 'Billing App',
+        title: 'Gestion de caisse',
+        locale: const Locale('fr', 'DZ'),
         theme: AppTheme.lightTheme,
         routerConfig: router,
         debugShowCheckedModeBanner: false,

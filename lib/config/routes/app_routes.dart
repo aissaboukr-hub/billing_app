@@ -7,11 +7,24 @@ import '../../features/shop/presentation/pages/shop_details_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/billing/presentation/pages/scanner_page.dart';
 import '../../features/billing/presentation/pages/checkout_page.dart';
+import '../../features/auth/presentation/pages/auth_page.dart';
+import '../../features/auth/data/auth_service.dart';
+import '../../features/data_transfer/presentation/pages/import_export_page.dart';
 import '../../features/product/domain/entities/product.dart';
 
-final router = GoRouter(
-  initialLocation: '/',
+GoRouter buildRouter() {
+  final auth = AuthService();
+  return GoRouter(
+  initialLocation: auth.isLoggedIn ? '/' : '/login',
+  redirect: (context, state) {
+    final loggedIn = auth.isLoggedIn;
+    final isLogin = state.matchedLocation == '/login';
+    if (!loggedIn && !isLogin) return '/login';
+    if (loggedIn && isLogin) return '/';
+    return null;
+  },
   routes: [
+    GoRoute(path: '/login', builder: (context, state) => const AuthPage()),
     GoRoute(
       path: '/',
       builder: (context, state) => const HomePage(),
@@ -30,6 +43,7 @@ final router = GoRouter(
       path: '/settings',
       builder: (context, state) => const SettingsPage(),
     ),
+    GoRoute(path: '/import-export', builder: (context, state) => const ImportExportPage()),
     GoRoute(
       path: '/products',
       builder: (context, state) => const ProductListPage(),
@@ -56,4 +70,5 @@ final router = GoRouter(
       builder: (context, state) => const ShopDetailsPage(),
     ),
   ],
-);
+  );
+}

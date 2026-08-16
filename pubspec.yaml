@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.1.0 <4.0.0'
+  sdk: '>=3.6.0 <4.0.0'
 
 dependencies:
   flutter:
@@ -42,6 +42,12 @@ dependencies:
   bloc: ^8.1.4
   uuid: ^4.5.2
   app_settings: ^7.0.0
+
+  # Import / export / authentication
+  excel_community: ^2.2.0
+  file_picker: ^11.0.2
+  http: ^1.5.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:

@@ -5,6 +5,7 @@ import '../bloc/product_bloc.dart';
 import '../../domain/entities/product.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/app_validators.dart';
+import '../../../../core/utils/app_formatters.dart';
 
 class ProductListPage extends StatefulWidget {
   const ProductListPage({super.key});
@@ -60,9 +61,10 @@ class _ProductListPageState extends State<ProductListPage> {
               size: 28, color: Theme.of(context).primaryColor),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Product Management',
+        title: const Text('Gestion des produits',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
+        actions: [IconButton(icon: const Icon(Icons.import_export), tooltip: 'Importer / exporter', onPressed: () => context.push('/import-export'))],
       ),
       body: Column(
         children: [
@@ -81,14 +83,14 @@ class _ProductListPageState extends State<ProductListPage> {
                           controller: _searchController,
                           textCapitalization: TextCapitalization.words,
                           decoration: InputDecoration(
-                            hintText: 'Scan or enter barcode',
+                            hintText: 'Scanner ou saisir le code-barres',
                             prefixIcon: Icon(
                               Icons.search,
                               color: Colors.grey[400],
                             ),
                           ),
                           validator:
-                              AppValidators.required('Please enter a barcode'),
+                              AppValidators.required('Saisissez un code-barres'),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -107,7 +109,7 @@ class _ProductListPageState extends State<ProductListPage> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  const Text('Tap the icon to open camera scanner',
+                  const Text('Touchez l’icône pour ouvrir le scanner',
                       style: TextStyle(fontSize: 12, color: Color(0xFF4C669A))),
                 ],
               );
@@ -141,10 +143,10 @@ class _ProductListPageState extends State<ProductListPage> {
 
                 if (state.products.isEmpty) {
                   if (state.status == ProductStatus.error) {
-                    return Center(child: Text('Error: ${state.message}'));
+                    return Center(child: Text('Erreur : ${state.message}'));
                   }
                   return const Center(
-                      child: Text('No products found. Add some!'));
+                      child: Text('Aucun produit. Ajoutez-en un !'));
                 }
 
                 final filteredProducts = state.products
@@ -155,7 +157,7 @@ class _ProductListPageState extends State<ProductListPage> {
 
                 if (filteredProducts.isEmpty) {
                   return const Center(
-                      child: Text('No products match your search.'));
+                      child: Text('Aucun produit ne correspond à votre recherche.'));
                 }
 
                 return ListView.separated(
@@ -194,7 +196,7 @@ class _ProductListPageState extends State<ProductListPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  '₹${product.price.toStringAsFixed(2)}',
+                                  AppFormatters.price(product.price),
                                   style: TextStyle(
                                       fontWeight: FontWeight.w500,
                                       color: Colors.grey[600]),
@@ -264,19 +266,19 @@ class _ProductListPageState extends State<ProductListPage> {
       context: context,
       builder: (innerContext) {
         return AlertDialog(
-          title: const Text('Delete Product'),
-          content: Text('Are you sure you want to delete ${product.name}?'),
+          title: const Text('Supprimer le produit'),
+          content: Text('Voulez-vous vraiment supprimer ${product.name} ?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(innerContext),
-              child: const Text('Cancel'),
+              child: const Text('Annuler'),
             ),
             TextButton(
               onPressed: () {
                 context.read<ProductBloc>().add(DeleteProduct(product.id));
                 Navigator.pop(innerContext);
               },
-              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
             ),
           ],
         );

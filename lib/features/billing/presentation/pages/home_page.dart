@@ -8,6 +8,7 @@ import '../../../billing/presentation/bloc/billing_bloc.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/primary_button.dart';
 import '../../domain/entities/cart_item.dart';
+import '../../../../core/utils/app_formatters.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -18,7 +19,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
+    detectionSpeed: DetectionSpeed.noDuplicates,
     returnImage: false,
   );
 
@@ -116,7 +117,7 @@ class _HomePageState extends State<HomePage> {
                   if (_isCameraOn && mounted) _scannerController.start();
                 },
           icon: Icons.payment,
-          label: 'Review Order',
+          label: 'Vérifier la vente',
         );
       }),
     );
@@ -222,7 +223,7 @@ class _HomePageState extends State<HomePage> {
           ),
           const SizedBox(height: 16),
           const Text(
-            'Camera is turned off',
+            'La caméra est désactivée',
             style: TextStyle(
                 color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
           ),
@@ -245,7 +246,7 @@ class _HomePageState extends State<HomePage> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
             icon: const Icon(Icons.videocam),
-            label: const Text('Turn on Camera',
+            label: const Text('Activer la caméra',
                 style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: () {
               setState(() => _isCameraOn = true);
@@ -342,10 +343,10 @@ class _HomePageState extends State<HomePage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Scanned Items',
+                        const Text('Articles scannés',
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.w600)),
-                        Text('$totalItems items total',
+                        Text('$totalItems article(s) au total',
                             style: const TextStyle(
                                 fontSize: 12, color: Colors.grey)),
                       ],
@@ -353,14 +354,14 @@ class _HomePageState extends State<HomePage> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        const Text('TOTAL PRICE',
+                        const Text('TOTAL',
                             style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.grey,
                                 letterSpacing: 1.2)),
                         Text(
-                          '₹${state.totalAmount.toStringAsFixed(2)}',
+                          AppFormatters.price(state.totalAmount),
                           style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w900,
@@ -421,13 +422,13 @@ class _HomePageState extends State<HomePage> {
                 Icon(Icons.shopping_basket, size: 40, color: Colors.grey[300]),
           ),
           const SizedBox(height: 16),
-          const Text('List is empty',
+          const Text('La liste est vide',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           const SizedBox(height: 8),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              'Scanned items will appear here as you scan them with the camera above.',
+              'Les articles scannés apparaîtront ici au fur et à mesure.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey, fontSize: 14),
             ),
@@ -468,7 +469,7 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '₹${item.product.price.toStringAsFixed(2)}',
+                  AppFormatters.price(item.product.price),
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
