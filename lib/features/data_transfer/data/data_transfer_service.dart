@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:excel_community/excel_community.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -84,7 +85,7 @@ class DataTransferService {
     }
     final bytes = excel.encode();
     if (bytes == null) throw Exception('Impossible de générer le fichier Excel.');
-    final path = await FilePicker.saveFile(dialogTitle: 'Enregistrer la facture', fileName: 'facture_${DateTime.now().millisecondsSinceEpoch}.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'], bytes: bytes);
+    final path = await FilePicker.saveFile(dialogTitle: 'Enregistrer la facture', fileName: 'facture_${DateTime.now().millisecondsSinceEpoch}.xlsx', type: FileType.custom, allowedExtensions: ['xlsx'], bytes: Uint8List.fromList(bytes));
     if (path == null) return;
   }
 
