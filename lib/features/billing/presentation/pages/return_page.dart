@@ -55,7 +55,7 @@ class _ReturnPageState extends State<ReturnPage> {
           final query = _searchController.text.trim().toLowerCase();
           final products = query.isEmpty
               ? state.products.take(30).toList()
-              : state.products.where((p) => p.name.toLowerCase().contains(query) || p.barcode.toLowerCase().contains(query)).take(30).toList();
+              : state.products.where((p) => _matchesWildcardSearch(p, query)).take(30).toList();
           return Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -96,6 +96,18 @@ class _ReturnPageState extends State<ReturnPage> {
         },
       ),
     );
+  }
+
+  bool _matchesWildcardSearch(Product product, String query) {
+    final name = product.name.toLowerCase();
+    final barcode = product.barcode.toLowerCase();
+    final terms = query.split(RegExp(r'\s+')).where((term) => term.isNotEmpty);
+    for (final term in terms) {
+      final pattern = RegExp.escape(term).replaceAll('%', '.*');
+      final regex = RegExp(pattern, caseSensitive: false);
+      if (!regex.hasMatch(name) && !regex.hasMatch(barcode)) return false;
+    }
+    return true;
   }
 
   Widget _buildReturnForm(Product product) {

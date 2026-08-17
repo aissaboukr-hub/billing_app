@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vibration/vibration.dart';
 import 'package:flutter/services.dart';
 
 class ScannerPage extends StatefulWidget {
@@ -52,12 +51,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         _isScanned = true;
         await controller.stop();
         await SystemSound.play(SystemSoundType.click);
-        // Vibrate
-        final hasVibrator = await Vibration.hasVibrator();
-        if (hasVibrator == true) {
-          Vibration.vibrate();
-        }
-
         if (mounted) {
           context.pop(barcode.rawValue);
         }

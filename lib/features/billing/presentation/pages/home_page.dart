@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:vibration/vibration.dart';
 import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
@@ -78,9 +77,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _lastScanTimes[rawValue] = now;
       await _scannerController.stop();
 
-      final hasVibrator = await Vibration.hasVibrator();
-      if (hasVibrator == true) Vibration.vibrate();
-
       if (mounted) {
         context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
       }
@@ -119,6 +115,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
+    Future<void>.delayed(const Duration(seconds: 2), () {
+      if (mounted) messenger.hideCurrentMaterialBanner();
+    });
   }
 
   @override
@@ -309,7 +308,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         const SizedBox(height: 12),
         Expanded(child: BlocBuilder<ProductBloc, ProductState>(builder: (context, state) {
           final query = _searchController.text.trim().toLowerCase();
-          final products = query.isEmpty ? state.products.take(20).toList() : state.products.where((p) => p.name.toLowerCase().contains(query) || p.barcode.toLowerCase().contains(query)).take(30).toList();
+          final products = query.isEmpty
+              ? state.products.take(20).toList()
+              : state.products.where((p) => _matchesWildcardSearch(p, query)).take(30).toList();
           if (products.isEmpty) return const Center(child: Text('Aucun produit trouvé.'));
           return ListView.separated(
             itemCount: products.length,
@@ -332,6 +333,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         })),
       ]),
     );
+  }
+
+  bool _matchesWildcardSearch(Product product, String query) {
+    final name = product.name.toLowerCase();
+    final barcode = product.barcode.toLowerCase();
+    final terms = query.split(RegExp(r'\s+')).where((term) => term.isNotEmpty);
+    for (final term in terms) {
+      final pattern = RegExp.escape(term).replaceAll('%', '.*');
+      final regex = RegExp(pattern, caseSensitive: false);
+      if (!regex.hasMatch(name) && !regex.hasMatch(barcode)) return false;
+    }
+    return true;
   }
 
   Widget _buildCameraOffState() {
