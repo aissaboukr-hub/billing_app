@@ -12,131 +12,185 @@ class ScannerPage extends StatefulWidget {
 
 class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   final MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    autoStart: false,
+    detectionSpeed: DetectionSpeed.normal,
+    detectionTimeoutMs: 150,
+    formats: const [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.code128,
+      BarcodeFormat.code39,
+      BarcodeFormat.code93,
+      BarcodeFormat.itf,
+      BarcodeFormat.qrCode,
+    ],
     returnImage: false,
   );
+
   bool _isScanned = false;
+  bool _starting = false;
+  double _zoom = 1.5;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (mounted && !_isScanned) controller.start();
+      if (mounted && !_isScanned) {
+        Future<void>.delayed(const Duration(milliseconds: 300), _start);
+      }
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      controller.stop();
+      _stop();
     }
+  }
+
+  Future<void> _start() async {
+    if (!mounted || _isScanned || _starting) return;
+    _starting = true;
+    try {
+      await controller.start();
+      await controller.setZoomScale(_zoom);
+    } catch (_) {}
+    _starting = false;
+  }
+
+  Future<void> _stop() async {
+    try {
+      await controller.stop();
+    } catch (_) {}
+  }
+
+  Future<void> _setZoom(double value) async {
+    final zoom = value.clamp(1.0, 2.0).toDouble();
+    setState(() => _zoom = zoom);
+    try {
+      await controller.setZoomScale(zoom);
+    } catch (_) {}
+  }
+
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_isScanned) return;
+
+    String? value;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue?.trim();
+      if (raw != null && raw.isNotEmpty) {
+        value = raw;
+        break;
+      }
+    }
+    if (value == null) return;
+
+    _isScanned = true;
+    await _stop();
+    await SystemSound.play(SystemSoundType.click);
+    if (mounted) context.pop(value);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
+    controller.stop();
     controller.dispose();
     super.dispose();
-  }
-
-  void _onDetect(BarcodeCapture capture) async {
-    if (_isScanned) return;
-    final List<Barcode> barcodes = capture.barcodes;
-
-    for (final barcode in barcodes) {
-      if (barcode.rawValue != null) {
-        _isScanned = true;
-        await controller.stop();
-        await SystemSound.play(SystemSoundType.click);
-        if (mounted) {
-          context.pop(barcode.rawValue);
-        }
-        break; // Only take first one
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          leading: IconButton(
-            icon: Icon(Icons.chevron_left,
-                size: 28, color: Theme.of(context).primaryColor),
-            onPressed: () => context.pop(),
-          ),
-          title: const Text('Scanner un code-barres',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
+        leading: IconButton(
+          icon: Icon(Icons.chevron_left, size: 28, color: Theme.of(context).primaryColor),
+          onPressed: () async {
+            await _stop();
+            if (mounted) context.pop();
+          },
+        ),
+        title: const Text(
+          'Scanner un code-barres',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+      ),
       body: Stack(
         children: [
-          MobileScanner(
-            controller: controller,
-            onDetect: _onDetect,
-            // Removed overlay property
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final scanWindow = Rect.fromLTWH(
+                constraints.maxWidth * 0.04,
+                constraints.maxHeight * 0.27,
+                constraints.maxWidth * 0.92,
+                constraints.maxHeight * 0.46,
+              );
+              return MobileScanner(
+                controller: controller,
+                onDetect: _onDetect,
+                fit: BoxFit.cover,
+                scanWindow: scanWindow,
+              );
+            },
           ),
-          // Simple border overlay manually
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.transparent, width: 0),
+          Center(
+            child: Container(
+              width: MediaQuery.of(context).size.width * 0.88,
+              height: 150,
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.greenAccent, width: 2),
+                borderRadius: BorderRadius.circular(14),
+              ),
             ),
-            child: Center(
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.green, width: 2),
-                  // borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(5.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _corner(0),
-                          _corner(1),
-                        ],
+          ),
+          Positioned(
+            top: 18,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final value in [1.0, 1.5, 2.0])
+                    GestureDetector(
+                      onTap: () => _setZoom(value),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+                        child: Text(
+                          '${value.toStringAsFixed(1)}x',
+                          style: TextStyle(
+                            color: _zoom == value ? Colors.greenAccent : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
                       ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          _corner(3),
-                          _corner(2),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                    ),
+                ],
               ),
             ),
           ),
           const Positioned(
             bottom: 40,
-            left: 0,
-            right: 0,
+            left: 16,
+            right: 16,
             child: Text(
-              'Alignez le code-barres dans le cadre',
+              'Placez le code horizontalement dans le cadre. Pour un petit code, utilisez 1,5x ou 2x et évitez les reflets.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 16),
+              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _corner(int index) {
-    return Container(
-      width: 15,
-      height: 15,
-      decoration: BoxDecoration(
-        color: Colors.transparent,
-        border: Border.all(color: Colors.white, width: 2),
       ),
     );
   }

@@ -20,42 +20,88 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  // Scanner configuré pour les codes-barres 1D courants et les QR codes.
+  // La détection normale avec un petit délai est plus réactive que noDuplicates
+  // sur les petits codes imprimés sur des objets courbés.
   final MobileScannerController _scannerController = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
+    autoStart: false,
+    detectionSpeed: DetectionSpeed.normal,
+    detectionTimeoutMs: 150,
+    formats: const [
+      BarcodeFormat.ean13,
+      BarcodeFormat.ean8,
+      BarcodeFormat.upcA,
+      BarcodeFormat.upcE,
+      BarcodeFormat.code128,
+      BarcodeFormat.code39,
+      BarcodeFormat.code93,
+      BarcodeFormat.itf,
+      BarcodeFormat.qrCode,
+    ],
     returnImage: false,
   );
 
   bool _isCameraOn = true;
   bool _isFlashOn = false;
   bool _searchMode = false;
+  bool _cameraStarting = false;
+  double _zoom = 1.5;
   final TextEditingController _searchController = TextEditingController();
 
-  // Cooldown mapping to prevent rapid firing of the same barcode
+  // Cooldown mapping to prevent rapid firing of the same barcode.
   final Map<String, DateTime> _lastScanTimes = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startScanner();
+    });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Nous gérons explicitement le cycle de vie pour éviter les caméras
+    // bloquées après navigation ou retour depuis l'arrière-plan.
     if (state == AppLifecycleState.resumed) {
       if (_isCameraOn && !_searchMode && mounted) {
-        _scannerController.start();
+        Future<void>.delayed(const Duration(milliseconds: 300), _startScanner);
       }
     } else if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
         state == AppLifecycleState.detached) {
-      _scannerController.stop();
+      _stopScanner();
+    }
+  }
+
+  Future<void> _startScanner() async {
+    if (!mounted || !_isCameraOn || _searchMode || _cameraStarting) return;
+    _cameraStarting = true;
+    try {
+      await _scannerController.start();
+      // Zoom modéré : utile pour les petits codes sur stylos/crayons sans
+      // supprimer complètement la marge de cadrage.
+      await _scannerController.setZoomScale(_zoom);
+    } catch (_) {
+      // Une transition de route ou une permission caméra peut interrompre start().
+    } finally {
+      _cameraStarting = false;
+    }
+  }
+
+  Future<void> _stopScanner() async {
+    try {
+      await _scannerController.stop();
+    } catch (_) {
+      // stop() est volontairement idempotent côté application.
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-
+    _scannerController.stop();
     _scannerController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -86,15 +132,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _restartScanner() async {
     if (!mounted || !_isCameraOn || _searchMode) return;
-    try {
-      await _scannerController.stop();
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      if (mounted && _isCameraOn && !_searchMode) {
-        await _scannerController.start();
-      }
-    } catch (_) {
-      // Le contrôleur peut déjà être arrêté pendant une transition de route.
+    await _stopScanner();
+    // Laisser CameraX/AVFoundation libérer complètement la session avant
+    // de la recréer. Cela évite les écrans noirs et les scanners figés.
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (mounted && _isCameraOn && !_searchMode) {
+      await _startScanner();
     }
+  }
+
+  Future<void> _setZoom(double value) async {
+    final zoom = value.clamp(1.0, 2.0).toDouble();
+    setState(() => _zoom = zoom);
+    try {
+      await _scannerController.setZoomScale(zoom);
+    } catch (_) {}
   }
 
   void _showTopBanner(String message, {bool error = false}) {
@@ -169,7 +221,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onPressed: state.cartItems.isEmpty
               ? null
               : () async {
-                  _scannerController.stop();
+                  await _stopScanner();
                   await context.push('/checkout');
                   await _restartScanner();
                 },
@@ -187,9 +239,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          MobileScanner(
-            controller: _scannerController,
-            onDetect: _onDetect,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final scanWindow = Rect.fromLTWH(
+                constraints.maxWidth * 0.04,
+                constraints.maxHeight * 0.25,
+                constraints.maxWidth * 0.92,
+                constraints.maxHeight * 0.50,
+              );
+              return MobileScanner(
+                controller: _scannerController,
+                onDetect: _onDetect,
+                fit: BoxFit.cover,
+                scanWindow: scanWindow,
+              );
+            },
           ),
           if (!_isCameraOn) _buildCameraOffState(),
 
@@ -203,14 +267,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   icon: Icons.manage_search,
                   onPressed: () {
                     setState(() => _searchMode = true);
-                    _scannerController.stop();
+                    _stopScanner();
                   },
                 ),
                 const SizedBox(height: 16),
                 _buildOverlayButton(
                   icon: Icons.assignment_return,
                   onPressed: () async {
-                    await _scannerController.stop();
+                    await _stopScanner();
                     await context.push('/returns');
                     await _restartScanner();
                   },
@@ -219,7 +283,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 _buildOverlayButton(
                   icon: Icons.history,
                   onPressed: () async {
-                    _scannerController.stop();
+                    await _stopScanner();
                     await context.push('/history');
                     await _restartScanner();
                   },
@@ -228,7 +292,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 _buildOverlayButton(
                   icon: Icons.settings,
                   onPressed: () async {
-                    _scannerController.stop();
+                    await _stopScanner();
                     await context.push('/settings');
                     await _restartScanner();
                   },
@@ -243,7 +307,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       _scannerController.toggleTorch();
                     },
                   ),
-                if (_isCameraOn) const SizedBox(height: 16),
+                if (_isCameraOn) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: Colors.white24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final value in [1.0, 1.5, 2.0])
+                          GestureDetector(
+                            onTap: () => _setZoom(value),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
+                              child: Text(
+                                '${value.toStringAsFixed(1)}x',
+                                style: TextStyle(
+                                  color: _zoom == value ? Colors.greenAccent : Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
                 _buildOverlayButton(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   // color:  Colors.white24 ,
@@ -252,9 +347,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       _isCameraOn = !_isCameraOn;
                     });
                     if (_isCameraOn) {
-                      _scannerController.start();
+                      _startScanner();
                     } else {
-                      _scannerController.stop();
+                      _stopScanner();
                     }
                   },
                 ),
@@ -393,7 +488,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 style: TextStyle(fontWeight: FontWeight.bold)),
             onPressed: () {
               setState(() => _isCameraOn = true);
-              _scannerController.start();
+              _startScanner();
             },
           )
         ],
