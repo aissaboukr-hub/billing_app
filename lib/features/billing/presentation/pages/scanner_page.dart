@@ -153,7 +153,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             left: 16,
             right: 16,
             child: Text(
-              'Placez le code horizontalement dans le cadre. Gardez l'objet immobile, à bonne distance, et évitez les reflets directs.',
+              'Placez le code horizontalement dans le cadre. Gardez l\'objet immobile, à bonne distance, et évitez les reflets directs.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
             ),
