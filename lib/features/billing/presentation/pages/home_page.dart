@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../billing/presentation/bloc/billing_bloc.dart';
@@ -19,7 +20,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final MobileScannerController _scannerController = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
     returnImage: false,
@@ -34,60 +35,112 @@ class _HomePageState extends State<HomePage> {
   final Map<String, DateTime> _lastScanTimes = {};
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_isCameraOn && !_searchMode && mounted) {
+        _scannerController.start();
+      }
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _scannerController.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     _scannerController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onDetect(BarcodeCapture capture) async {
+  Future<void> _onDetect(BarcodeCapture capture) async {
     final List<Barcode> barcodes = capture.barcodes;
     final now = DateTime.now();
 
     for (final barcode in barcodes) {
-      if (barcode.rawValue != null) {
-        final rawValue = barcode.rawValue!;
+      final rawValue = barcode.rawValue;
+      if (rawValue == null || rawValue.isEmpty) continue;
 
-        // Cooldown logic: 2 seconds per identical barcode
-        if (_lastScanTimes.containsKey(rawValue)) {
-          final lastScan = _lastScanTimes[rawValue]!;
-          if (now.difference(lastScan).inSeconds < 2) {
-            continue;
-          }
-        }
-
-        _lastScanTimes[rawValue] = now;
-
-        // Vibrate
-        final hasVibrator = await Vibration.hasVibrator();
-        if (hasVibrator == true) {
-          Vibration.vibrate();
-        }
-
-        if (mounted) {
-          context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
-        }
-        break; // Process one barcode at a time per frame
+      if (_lastScanTimes.containsKey(rawValue)) {
+        final lastScan = _lastScanTimes[rawValue]!;
+        if (now.difference(lastScan).inSeconds < 2) continue;
       }
+
+      _lastScanTimes[rawValue] = now;
+      await _scannerController.stop();
+
+      final hasVibrator = await Vibration.hasVibrator();
+      if (hasVibrator == true) Vibration.vibrate();
+
+      if (mounted) {
+        context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
+      }
+      break;
     }
+  }
+
+  Future<void> _restartScanner() async {
+    if (!mounted || !_isCameraOn || _searchMode) return;
+    try {
+      await _scannerController.stop();
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      if (mounted && _isCameraOn && !_searchMode) {
+        await _scannerController.start();
+      }
+    } catch (_) {
+      // Le contrôleur peut déjà être arrêté pendant une transition de route.
+    }
+  }
+
+  void _showTopBanner(String message, {bool error = false}) {
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentMaterialBanner();
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        content: Text(message),
+        leading: Icon(error ? Icons.error_outline : Icons.check_circle_outline,
+            color: error ? Colors.red : Colors.green),
+        backgroundColor: error ? Colors.red.shade50 : Colors.green.shade50,
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('FERMER'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: BlocListener<BillingBloc, BillingState>(
-        listenWhen: (previous, current) =>
-            previous.error != current.error && current.error != null,
-        listener: (context, state) {
+        listenWhen: (previous, current) {
+          final cartChanged = previous.cartItems != current.cartItems;
+          final errorChanged = previous.error != current.error;
+          return cartChanged || (errorChanged && current.error != null);
+        },
+        listener: (context, state) async {
           if (state.error != null) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(state.error!),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
+            await SystemSound.play(SystemSoundType.alert);
+            _showTopBanner(state.error!, error: true);
+            await _restartScanner();
+            return;
           }
+          await SystemSound.play(SystemSoundType.click);
+          final last = state.cartItems.isEmpty ? null : state.cartItems.last.product.name;
+          _showTopBanner(last == null ? 'Article ajouté au panier' : '$last ajouté au panier');
+          await _restartScanner();
         },
         child: Stack(
           children: [
@@ -119,7 +172,7 @@ class _HomePageState extends State<HomePage> {
               : () async {
                   _scannerController.stop();
                   await context.push('/checkout');
-                  if (_isCameraOn && mounted) _scannerController.start();
+                  await _restartScanner();
                 },
           icon: Icons.payment,
           label: 'Vérifier la vente',
@@ -156,11 +209,20 @@ class _HomePageState extends State<HomePage> {
                 ),
                 const SizedBox(height: 16),
                 _buildOverlayButton(
+                  icon: Icons.assignment_return,
+                  onPressed: () async {
+                    await _scannerController.stop();
+                    await context.push('/returns');
+                    await _restartScanner();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
                   icon: Icons.history,
                   onPressed: () async {
                     _scannerController.stop();
                     await context.push('/history');
-                    if (_isCameraOn && mounted && !_searchMode) _scannerController.start();
+                    await _restartScanner();
                   },
                 ),
                 const SizedBox(height: 16),
@@ -169,7 +231,7 @@ class _HomePageState extends State<HomePage> {
                   onPressed: () async {
                     _scannerController.stop();
                     await context.push('/settings');
-                    if (_isCameraOn && mounted) _scannerController.start();
+                    await _restartScanner();
                   },
                 ),
                 const SizedBox(height: 16),
@@ -234,8 +296,8 @@ class _HomePageState extends State<HomePage> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Rechercher un produit', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-          IconButton(onPressed: () { setState(() => _searchMode = false); if (_isCameraOn) _scannerController.start(); }, icon: const Icon(Icons.qr_code_scanner), tooltip: 'Scanner'),
-          IconButton(onPressed: () { setState(() => _searchMode = false); if (_isCameraOn) _scannerController.start(); }, icon: const Icon(Icons.close)),
+          IconButton(onPressed: () { setState(() => _searchMode = false); _restartScanner(); }, icon: const Icon(Icons.qr_code_scanner), tooltip: 'Scanner'),
+          IconButton(onPressed: () { setState(() => _searchMode = false); _restartScanner(); }, icon: const Icon(Icons.close)),
         ]),
         const SizedBox(height: 12),
         TextField(
@@ -261,7 +323,8 @@ class _HomePageState extends State<HomePage> {
                 trailing: Text(AppFormatters.price(product.price), style: const TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   context.read<BillingBloc>().add(AddProductToCartEvent(product));
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${product.name} ajouté au panier')));
+                  SystemSound.play(SystemSoundType.click);
+                  _showTopBanner('${product.name} ajouté au panier');
                 },
               );
             },
@@ -298,7 +361,7 @@ class _HomePageState extends State<HomePage> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 32),
             child: Text(
-              'Turn on your camera to start scanning barcodes and items automatically.',
+              'Activez la caméra pour scanner automatiquement les codes-barres et les articles.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white70, fontSize: 12),
             ),

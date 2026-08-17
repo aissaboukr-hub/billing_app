@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'config/routes/app_routes.dart';
 import 'core/data/hive_database.dart';
 import 'core/service_locator.dart' as di;
@@ -39,6 +40,8 @@ class MyApp extends StatelessWidget {
       child: MaterialApp.router(
         title: 'Gestion de caisse',
         locale: const Locale('fr', 'DZ'),
+        supportedLocales: const [Locale('fr', 'DZ'), Locale('fr')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         theme: AppTheme.lightTheme,
         routerConfig: router,
         debugShowCheckedModeBanner: false,

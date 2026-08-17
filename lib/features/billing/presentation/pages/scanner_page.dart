@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vibration/vibration.dart';
+import 'package:flutter/services.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -10,7 +11,7 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
+class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   final MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
     returnImage: false,
@@ -18,7 +19,26 @@ class _ScannerPageState extends State<ScannerPage> {
   bool _isScanned = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted && !_isScanned) controller.start();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      controller.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+
     controller.dispose();
     super.dispose();
   }
@@ -30,6 +50,8 @@ class _ScannerPageState extends State<ScannerPage> {
     for (final barcode in barcodes) {
       if (barcode.rawValue != null) {
         _isScanned = true;
+        await controller.stop();
+        await SystemSound.play(SystemSoundType.click);
         // Vibrate
         final hasVibrator = await Vibration.hasVibrator();
         if (hasVibrator == true) {
@@ -105,7 +127,7 @@ class _ScannerPageState extends State<ScannerPage> {
             left: 0,
             right: 0,
             child: Text(
-              'Align barcode within frame',
+              'Alignez le code-barres dans le cadre',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: 16),
             ),

@@ -7,6 +7,7 @@ import '../../features/shop/presentation/pages/shop_details_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 import '../../features/billing/presentation/pages/scanner_page.dart';
 import '../../features/billing/presentation/pages/checkout_page.dart';
+import '../../features/billing/presentation/pages/return_page.dart';
 import '../../features/auth/presentation/pages/auth_page.dart';
 import '../../features/auth/data/auth_service.dart';
 import '../../features/data_transfer/presentation/pages/import_export_page.dart';
@@ -37,6 +38,10 @@ GoRouter buildRouter() {
         GoRoute(
           path: 'checkout',
           builder: (context, state) => const CheckoutPage(),
+        ),
+        GoRoute(
+          path: 'returns',
+          builder: (context, state) => const ReturnPage(),
         ),
       ],
     ),

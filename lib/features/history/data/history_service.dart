@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../../../../core/data/hive_database.dart';
 import '../../billing/domain/entities/cart_item.dart';
+import '../../product/domain/entities/product.dart';
 
 class HistoryService {
   static const _key = 'operations_history';
@@ -30,6 +31,31 @@ class HistoryService {
         'prixUnitaire': item.product.price,
         'total': item.total,
       }).toList(),
+    });
+    await HiveDatabase.settingsBox.put(_key, history);
+  }
+
+  static Future<void> addReturn({
+    required Product product,
+    required int quantity,
+    required double total,
+  }) async {
+    final history = getAll();
+    history.insert(0, {
+      'id': _uuid.v4(),
+      'type': 'Retour',
+      'date': DateTime.now().toIso8601String(),
+      'total': -total,
+      'currency': 'DZD',
+      'items': [
+        {
+          'produit': product.name,
+          'codeBarres': product.barcode,
+          'quantite': quantity,
+          'prixUnitaire': product.price,
+          'total': -total,
+        },
+      ],
     });
     await HiveDatabase.settingsBox.put(_key, history);
   }
