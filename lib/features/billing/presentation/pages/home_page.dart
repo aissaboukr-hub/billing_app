@@ -26,7 +26,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final MobileScannerController _scannerController = MobileScannerController(
     autoStart: false,
     detectionSpeed: DetectionSpeed.normal,
-    detectionTimeoutMs: 150,
+    detectionTimeoutMs: 120,
+    cameraResolution: const Size(1920, 1080),
+    useNewCameraSelector: true,
     formats: const [
       BarcodeFormat.ean13,
       BarcodeFormat.ean8,
@@ -45,7 +47,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isFlashOn = false;
   bool _searchMode = false;
   bool _cameraStarting = false;
-  double _zoom = 1.5;
   final TextEditingController _searchController = TextEditingController();
 
   // Cooldown mapping to prevent rapid firing of the same barcode.
@@ -80,9 +81,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _cameraStarting = true;
     try {
       await _scannerController.start();
-      // Zoom modéré : utile pour les petits codes sur stylos/crayons sans
-      // supprimer complètement la marge de cadrage.
-      await _scannerController.setZoomScale(_zoom);
     } catch (_) {
       // Une transition de route ou une permission caméra peut interrompre start().
     } finally {
@@ -108,25 +106,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    final List<Barcode> barcodes = capture.barcodes;
+    if (!_isCameraOn || _searchMode || _cameraStarting) return;
+
+    // Si plusieurs codes sont présents dans l'image, privilégier celui qui
+    // occupe la plus grande surface : c'est généralement le code présenté
+    // dans le cadre et non un code voisin sur l'emballage.
+    Barcode? bestBarcode;
+    double bestArea = 0;
+    for (final barcode in capture.barcodes) {
+      final raw = barcode.rawValue?.trim();
+      if (raw == null || raw.isEmpty) continue;
+      final size = barcode.size;
+      final area = size.width * size.height;
+      if (bestBarcode == null || area > bestArea) {
+        bestBarcode = barcode;
+        bestArea = area;
+      }
+    }
+
+    final rawValue = bestBarcode?.rawValue?.trim();
+    if (rawValue == null || rawValue.isEmpty) return;
+
     final now = DateTime.now();
+    final lastScan = _lastScanTimes[rawValue];
+    if (lastScan != null && now.difference(lastScan).inSeconds < 2) return;
+    _lastScanTimes[rawValue] = now;
 
-    for (final barcode in barcodes) {
-      final rawValue = barcode.rawValue;
-      if (rawValue == null || rawValue.isEmpty) continue;
-
-      if (_lastScanTimes.containsKey(rawValue)) {
-        final lastScan = _lastScanTimes[rawValue]!;
-        if (now.difference(lastScan).inSeconds < 2) continue;
-      }
-
-      _lastScanTimes[rawValue] = now;
-      await _scannerController.stop();
-
-      if (mounted) {
-        context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
-      }
-      break;
+    await _scannerController.stop();
+    if (mounted) {
+      context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
     }
   }
 
@@ -139,14 +147,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (mounted && _isCameraOn && !_searchMode) {
       await _startScanner();
     }
-  }
-
-  Future<void> _setZoom(double value) async {
-    final zoom = value.clamp(1.0, 2.0).toDouble();
-    setState(() => _zoom = zoom);
-    try {
-      await _scannerController.setZoomScale(zoom);
-    } catch (_) {}
   }
 
   void _showTopBanner(String message, {bool error = false}) {
@@ -241,11 +241,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
+              // Cadre horizontal large pour les codes 1D, notamment sur les
+              // stylos et emballages cylindriques. Pas de zoom numérique.
               final scanWindow = Rect.fromLTWH(
-                constraints.maxWidth * 0.04,
-                constraints.maxHeight * 0.25,
-                constraints.maxWidth * 0.92,
-                constraints.maxHeight * 0.50,
+                constraints.maxWidth * 0.02,
+                constraints.maxHeight * 0.30,
+                constraints.maxWidth * 0.96,
+                constraints.maxHeight * 0.40,
               );
               return MobileScanner(
                 controller: _scannerController,
@@ -307,38 +309,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       _scannerController.toggleTorch();
                     },
                   ),
-                if (_isCameraOn) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black54,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white24),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final value in [1.0, 1.5, 2.0])
-                          GestureDetector(
-                            onTap: () => _setZoom(value),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
-                              child: Text(
-                                '${value.toStringAsFixed(1)}x',
-                                style: TextStyle(
-                                  color: _zoom == value ? Colors.greenAccent : Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
                 _buildOverlayButton(
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   // color:  Colors.white24 ,

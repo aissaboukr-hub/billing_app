@@ -14,7 +14,9 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   final MobileScannerController controller = MobileScannerController(
     autoStart: false,
     detectionSpeed: DetectionSpeed.normal,
-    detectionTimeoutMs: 150,
+    detectionTimeoutMs: 120,
+    cameraResolution: const Size(1920, 1080),
+    useNewCameraSelector: true,
     formats: const [
       BarcodeFormat.ean13,
       BarcodeFormat.ean8,
@@ -31,7 +33,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
 
   bool _isScanned = false;
   bool _starting = false;
-  double _zoom = 1.5;
 
   @override
   void initState() {
@@ -58,7 +59,6 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     _starting = true;
     try {
       await controller.start();
-      await controller.setZoomScale(_zoom);
     } catch (_) {}
     _starting = false;
   }
@@ -69,26 +69,23 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _setZoom(double value) async {
-    final zoom = value.clamp(1.0, 2.0).toDouble();
-    setState(() => _zoom = zoom);
-    try {
-      await controller.setZoomScale(zoom);
-    } catch (_) {}
-  }
-
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_isScanned) return;
 
-    String? value;
+    Barcode? bestBarcode;
+    double bestArea = 0;
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue?.trim();
-      if (raw != null && raw.isNotEmpty) {
-        value = raw;
-        break;
+      if (raw == null || raw.isEmpty) continue;
+      final size = barcode.size;
+      final area = size.width * size.height;
+      if (bestBarcode == null || area > bestArea) {
+        bestBarcode = barcode;
+        bestArea = area;
       }
     }
-    if (value == null) return;
+    final value = bestBarcode?.rawValue?.trim();
+    if (value == null || value.isEmpty) return;
 
     _isScanned = true;
     await _stop();
@@ -124,11 +121,14 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
+              // Zone large et horizontale : les petits codes 1D sur des
+              // surfaces cylindriques ont besoin de plus de largeur et
+              // d'une hauteur suffisante pour conserver toutes les barres.
               final scanWindow = Rect.fromLTWH(
-                constraints.maxWidth * 0.04,
-                constraints.maxHeight * 0.27,
-                constraints.maxWidth * 0.92,
-                constraints.maxHeight * 0.46,
+                constraints.maxWidth * 0.02,
+                constraints.maxHeight * 0.33,
+                constraints.maxWidth * 0.96,
+                constraints.maxHeight * 0.34,
               );
               return MobileScanner(
                 controller: controller,
@@ -141,42 +141,10 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
           Center(
             child: Container(
               width: MediaQuery.of(context).size.width * 0.88,
-              height: 150,
+              height: 120,
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.greenAccent, width: 2),
                 borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 18,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.black54,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final value in [1.0, 1.5, 2.0])
-                    GestureDetector(
-                      onTap: () => _setZoom(value),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-                        child: Text(
-                          '${value.toStringAsFixed(1)}x',
-                          style: TextStyle(
-                            color: _zoom == value ? Colors.greenAccent : Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
               ),
             ),
           ),
@@ -185,7 +153,7 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
             left: 16,
             right: 16,
             child: Text(
-              'Placez le code horizontalement dans le cadre. Pour un petit code, utilisez 1,5x ou 2x et évitez les reflets.',
+              'Placez le code horizontalement dans le cadre. Gardez l'objet immobile, à bonne distance, et évitez les reflets directs.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
             ),
