@@ -118,7 +118,7 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
     ));
 
     try {
-      final items = state.cartItems.map((item) {
+      final List<Map<String, dynamic>> items = state.cartItems.map((item) {
         return <String, dynamic>{
           'name': item.product.name,
           'qty': item.quantity,

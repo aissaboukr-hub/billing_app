@@ -19,22 +19,18 @@ class _ScannerPageState extends State<ScannerPage> {
   );
 
   bool _isProcessingScan = false;
+  bool _torchEnabled = false;
+  bool _usingFrontCamera = false;
 
   void _onDetect(BarcodeCapture capture) async {
     if (_isProcessingScan) return;
 
-    final List<Barcode> barcodes = capture.barcodes;
-    for (final barcode in barcodes) {
-      final String? rawValue = barcode.rawValue;
+    for (final barcode in capture.barcodes) {
+      final rawValue = barcode.rawValue;
       if (rawValue != null && rawValue.isNotEmpty) {
-        setState(() {
-          _isProcessingScan = true;
-        });
-
-        // Émission de l'événement au BLoC
+        setState(() => _isProcessingScan = true);
         context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
 
-        // Signal visuel court
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Code scanné : $rawValue'),
@@ -42,17 +38,21 @@ class _ScannerPageState extends State<ScannerPage> {
           ),
         );
 
-        // Pause de sécurité pour éviter les scans multiples répétés
         await Future.delayed(const Duration(milliseconds: 1500));
-
-        if (mounted) {
-          setState(() {
-            _isProcessingScan = false;
-          });
-        }
+        if (mounted) setState(() => _isProcessingScan = false);
         break;
       }
     }
+  }
+
+  Future<void> _toggleTorch() async {
+    await _controller.toggleTorch();
+    if (mounted) setState(() => _torchEnabled = !_torchEnabled);
+  }
+
+  Future<void> _switchCamera() async {
+    await _controller.switchCamera();
+    if (mounted) setState(() => _usingFrontCamera = !_usingFrontCamera);
   }
 
   @override
@@ -68,27 +68,19 @@ class _ScannerPageState extends State<ScannerPage> {
         title: const Text('Scanner un article'),
         actions: [
           IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller.torchState,
-              builder: (context, state, child) {
-                switch (state) {
-                  case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
-                  case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
-                }
-              },
+            icon: Icon(
+              _torchEnabled ? Icons.flash_on : Icons.flash_off,
+              color: _torchEnabled ? Colors.yellow : Colors.grey,
             ),
-            onPressed: () => _controller.toggleTorch(),
+            onPressed: _toggleTorch,
           ),
           IconButton(
-            icon: ValueListenableBuilder(
-              valueListenable: _controller.cameraFacingState,
-              builder: (context, state, child) {
-                return const Icon(Icons.cameraswitch);
-              },
+            icon: Icon(
+              _usingFrontCamera
+                  ? Icons.camera_front
+                  : Icons.camera_rear,
             ),
-            onPressed: () => _controller.switchCamera(),
+            onPressed: _switchCamera,
           ),
         ],
       ),
@@ -110,9 +102,7 @@ class _ScannerPageState extends State<ScannerPage> {
             ),
           ),
           if (_isProcessingScan)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+            const Center(child: CircularProgressIndicator()),
         ],
       ),
     );
@@ -159,8 +149,6 @@ class QrScannerOverlayShape extends ShapeBorder {
 
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    final width = rect.width;
-    final height = rect.height;
     final boxRect = Rect.fromCenter(
       center: rect.center,
       width: cutOutSize,
@@ -184,50 +172,37 @@ class QrScannerOverlayShape extends ShapeBorder {
         ),
       );
 
-    final backgroundPath = Path()
-      ..addRect(Rect.fromLTWH(0, 0, width, height));
-
-    canvas.drawPath(
-      Path.combine(PathOperation.difference, backgroundPath, cutOutPath),
-      backgroundPaint,
+    final fullPath = Path()..addRect(rect);
+    final overlayPath = Path.combine(
+      PathOperation.difference,
+      fullPath,
+      cutOutPath,
     );
+    canvas.drawPath(overlayPath, backgroundPaint);
 
-    final path = Path();
-    path.moveTo(boxRect.left, boxRect.top + borderLength);
-    path.lineTo(boxRect.left, boxRect.top + borderRadius);
-    path.arcToPoint(
-      Offset(boxRect.left + borderRadius, boxRect.top),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(boxRect.left + borderLength, boxRect.top);
+    final left = boxRect.left;
+    final right = boxRect.right;
+    final top = boxRect.top;
+    final bottom = boxRect.bottom;
+    final r = borderRadius;
+    final l = borderLength;
 
-    path.moveTo(boxRect.right - borderLength, boxRect.top);
-    path.lineTo(boxRect.right - borderRadius, boxRect.top);
-    path.arcToPoint(
-      Offset(boxRect.right, boxRect.top + borderRadius),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(boxRect.right, boxRect.top + borderLength);
-
-    path.moveTo(boxRect.right, boxRect.bottom - borderLength);
-    path.lineTo(boxRect.right, boxRect.bottom - borderRadius);
-    path.arcToPoint(
-      Offset(boxRect.right - borderRadius, boxRect.bottom),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(boxRect.right - borderLength, boxRect.bottom);
-
-    path.moveTo(boxRect.left + borderLength, boxRect.bottom);
-    path.lineTo(boxRect.left + borderRadius, boxRect.bottom);
-    path.arcToPoint(
-      Offset(boxRect.left, boxRect.bottom - borderRadius),
-      radius: Radius.circular(borderRadius),
-    );
-    path.lineTo(boxRect.left, boxRect.bottom - borderLength);
-
-    canvas.drawPath(path, borderPaint);
+    canvas.drawLine(Offset(left, top + l), Offset(left, top + r), borderPaint);
+    canvas.drawLine(Offset(left + r, top), Offset(left + l, top), borderPaint);
+    canvas.drawLine(Offset(right - l, top), Offset(right - r, top), borderPaint);
+    canvas.drawLine(Offset(right, top + r), Offset(right, top + l), borderPaint);
+    canvas.drawLine(Offset(left, bottom - l), Offset(left, bottom - r), borderPaint);
+    canvas.drawLine(Offset(left + r, bottom), Offset(left + l, bottom), borderPaint);
+    canvas.drawLine(Offset(right - l, bottom), Offset(right - r, bottom), borderPaint);
+    canvas.drawLine(Offset(right, bottom - r), Offset(right, bottom - l), borderPaint);
   }
 
   @override
-  ShapeBorder scale(double t) => this;
+  ShapeBorder scale(double t) => QrScannerOverlayShape(
+        borderColor: borderColor,
+        borderWidth: borderWidth * t,
+        borderRadius: borderRadius * t,
+        borderLength: borderLength * t,
+        cutOutSize: cutOutSize * t,
+      );
 }

@@ -1,4 +1,5 @@
-part of 'billing_bloc.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/cart_item.dart';
 
 class BillingState extends Equatable {
   final List<CartItem> cartItems;
