@@ -1,140 +1,74 @@
-import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/cart_item.dart';
-import 'package:billing_app/features/product/domain/entities/product.dart';
-import 'package:billing_app/features/product/domain/usecases/product_usecases.dart';
-import '../../../../core/utils/printer_helper.dart';
-import '../../../../core/data/hive_database.dart';
-import '../../../history/data/history_service.dart';
-
-part 'billing_event.dart';
-part 'billing_state.dart';
+import '../../../product/domain/entities/product.dart';
+import '../../../product/domain/repositories/product_repository.dart';
+import 'billing_event.dart';
+import 'billing_state.dart';
 
 class BillingBloc extends Bloc<BillingEvent, BillingState> {
-  final GetProductByBarcodeUseCase getProductByBarcodeUseCase;
+  final ProductRepository productRepository;
 
-  BillingBloc({required this.getProductByBarcodeUseCase})
-      : super(const BillingState()) {
+  BillingBloc({required this.productRepository}) : super(const BillingState()) {
     on<ScanBarcodeEvent>(_onScanBarcode);
-    on<AddProductToCartEvent>(_onAddProductToCart);
-    on<RemoveProductFromCartEvent>(_onRemoveProductFromCart);
+    on<AddToCartEvent>(_onAddToCart);
+    on<RemoveFromCartEvent>(_onRemoveFromCart);
     on<UpdateQuantityEvent>(_onUpdateQuantity);
     on<ClearCartEvent>(_onClearCart);
-    on<PrintReceiptEvent>(_onPrintReceipt);
   }
 
   Future<void> _onScanBarcode(
-      ScanBarcodeEvent event, Emitter<BillingState> emit) async {
-    final result = await getProductByBarcodeUseCase(event.barcode);
+    ScanBarcodeEvent event,
+    Emitter<BillingState> emit,
+  ) async {
+    final result = await productRepository.getProductByBarcode(event.barcode);
     result.fold(
-      (failure) =>
-          emit(state.copyWith(error: 'Produit introuvable : ${event.barcode}')),
+      (failure) => emit(state.copyWith(errorMessage: 'Produit non trouvé')),
       (product) {
-        add(AddProductToCartEvent(product));
+        if (product != null) {
+          add(AddToCartEvent(product));
+        } else {
+          emit(state.copyWith(errorMessage: 'Aucun produit associé à ce code-barres'));
+        }
       },
     );
   }
 
-  void _onAddProductToCart(
-      AddProductToCartEvent event, Emitter<BillingState> emit) {
-    // Clear error when adding
-    final cleanState = state.copyWith(error: null);
+  void _onAddToCart(AddToCartEvent event, Emitter<BillingState> emit) {
+    final updatedCart = List<CartItem>.from(state.cartItems);
+    final index = updatedCart.indexWhere((item) => item.product.id == event.product.id);
 
-    final existingIndex = cleanState.cartItems
-        .indexWhere((item) => item.product.id == event.product.id);
-    if (existingIndex >= 0) {
-      final existingItem = cleanState.cartItems[existingIndex];
-      final backendItems = List<CartItem>.from(cleanState.cartItems);
-      backendItems[existingIndex] =
-          existingItem.copyWith(quantity: existingItem.quantity + 1);
-      emit(cleanState.copyWith(cartItems: backendItems, error: null));
+    if (index >= 0) {
+      final existingItem = updatedCart[index];
+      updatedCart[index] = existingItem.copyWith(quantity: existingItem.quantity + 1);
     } else {
-      final newItem = CartItem(product: event.product);
-      emit(cleanState.copyWith(
-          cartItems: [...cleanState.cartItems, newItem], error: null));
+      updatedCart.add(CartItem(product: event.product, quantity: 1));
     }
+
+    emit(state.copyWith(cartItems: updatedCart, errorMessage: null));
   }
 
-  void _onRemoveProductFromCart(
-      RemoveProductFromCartEvent event, Emitter<BillingState> emit) {
-    final updatedList = state.cartItems
-        .where((item) => item.product.id != event.productId)
-        .toList();
-    emit(state.copyWith(cartItems: updatedList));
+  void _onRemoveFromCart(RemoveFromCartEvent event, Emitter<BillingState> emit) {
+    final updatedCart = state.cartItems.where((item) => item.product.id != event.productId).toList();
+    emit(state.copyWith(cartItems: updatedCart));
   }
 
-  void _onUpdateQuantity(
-      UpdateQuantityEvent event, Emitter<BillingState> emit) {
+  void _onUpdateQuantity(UpdateQuantityEvent event, Emitter<BillingState> emit) {
     if (event.quantity <= 0) {
-      add(RemoveProductFromCartEvent(event.productId));
+      add(RemoveFromCartEvent(event.productId));
       return;
     }
 
-    final index = state.cartItems
-        .indexWhere((item) => item.product.id == event.productId);
-    if (index >= 0) {
-      final items = List<CartItem>.from(state.cartItems);
-      items[index] = items[index].copyWith(quantity: event.quantity);
-      emit(state.copyWith(cartItems: items));
-    }
+    final updatedCart = state.cartItems.map((item) {
+      if (item.product.id == event.productId) {
+        return item.copyWith(quantity: event.quantity);
+      }
+      return item;
+    }).toList();
+
+    emit(state.copyWith(cartItems: updatedCart));
   }
 
   void _onClearCart(ClearCartEvent event, Emitter<BillingState> emit) {
-    emit(const BillingState());
-  }
-
-  Future<void> _onPrintReceipt(
-      PrintReceiptEvent event, Emitter<BillingState> emit) async {
-    final printerHelper = PrinterHelper();
-
-    if (!printerHelper.isConnected) {
-      final savedMac = HiveDatabase.settingsBox.get('printer_mac');
-      if (savedMac != null) {
-        final connected = await printerHelper.connect(savedMac);
-        if (!connected) {
-          emit(state.copyWith(
-              error: 'Impossible de connecter automatiquement l’imprimante !', clearError: false));
-          emit(state.copyWith(clearError: true));
-          return;
-        }
-      } else {
-        emit(state.copyWith(
-            error: 'Imprimante non connectée et aucune imprimante enregistrée !',
-            clearError: false));
-        emit(state.copyWith(clearError: true));
-        return;
-      }
-    }
-
-    emit(state.copyWith(
-        isPrinting: true, printSuccess: false, clearError: true));
-
-    try {
-      final items = state.cartItems
-          .map((item) => {
-                'name': item.product.name,
-                'qty': item.quantity,
-                'price': item.product.price,
-                'total': item.total,
-              })
-          .toList();
-
-      await printerHelper.printReceipt(
-          shopName: event.shopName,
-          address1: event.address1,
-          address2: event.address2,
-          phone: event.phone,
-          items: items,
-          total: state.totalAmount,
-          footer: event.footer);
-
-      await HistoryService.addSale(items: state.cartItems, total: state.totalAmount);
-      emit(state.copyWith(isPrinting: false, printSuccess: true));
-    } catch (e) {
-      emit(state.copyWith(
-          isPrinting: false, error: 'Échec de l’impression : $e', clearError: false));
-      // Reset error instantly avoids sticky error
-      emit(state.copyWith(clearError: true));
-    }
+    emit(state.copyWith(cartItems: []));
   }
 }

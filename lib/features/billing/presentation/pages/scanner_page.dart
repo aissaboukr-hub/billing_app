@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:go_router/go_router.dart';
-import 'package:flutter/services.dart';
+import '../bloc/billing_bloc.dart';
+import '../bloc/billing_event.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -10,94 +11,53 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
-  final MobileScannerController controller = MobileScannerController(
-    autoStart: false,
-    detectionSpeed: DetectionSpeed.normal,
-    detectionTimeoutMs: 120,
-    cameraResolution: const Size(1920, 1080),
-    useNewCameraSelector: true,
-    formats: const [
-      BarcodeFormat.ean13,
-      BarcodeFormat.ean8,
-      BarcodeFormat.upcA,
-      BarcodeFormat.upcE,
-      BarcodeFormat.code128,
-      BarcodeFormat.code39,
-      BarcodeFormat.code93,
-      BarcodeFormat.itf,
-      BarcodeFormat.qrCode,
-    ],
-    returnImage: false,
+class _ScannerPageState extends State<ScannerPage> {
+  final MobileScannerController _controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+    facing: CameraFacing.back,
+    torchEnabled: false,
   );
 
-  bool _isScanned = false;
-  bool _starting = false;
+  bool _isProcessingScan = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
-  }
+  void _onDetect(BarcodeCapture capture) async {
+    if (_isProcessingScan) return;
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      if (mounted && !_isScanned) {
-        Future<void>.delayed(const Duration(milliseconds: 300), _start);
-      }
-    } else if (state == AppLifecycleState.inactive ||
-        state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _stop();
-    }
-  }
+    final List<Barcode> barcodes = capture.barcodes;
+    for (final barcode in barcodes) {
+      final String? rawValue = barcode.rawValue;
+      if (rawValue != null && rawValue.isNotEmpty) {
+        setState(() {
+          _isProcessingScan = true;
+        });
 
-  Future<void> _start() async {
-    if (!mounted || _isScanned || _starting) return;
-    _starting = true;
-    try {
-      await controller.start();
-    } catch (_) {}
-    _starting = false;
-  }
+        // Émission de l'événement au BLoC
+        context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
 
-  Future<void> _stop() async {
-    try {
-      await controller.stop();
-    } catch (_) {}
-  }
+        // Signal visuel court
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Code scanné : $rawValue'),
+            duration: const Duration(milliseconds: 800),
+          ),
+        );
 
-  Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_isScanned) return;
+        // Pause de sécurité pour éviter les scans multiples répétés
+        await Future.delayed(const Duration(milliseconds: 1500));
 
-    Barcode? bestBarcode;
-    double bestArea = 0;
-    for (final barcode in capture.barcodes) {
-      final raw = barcode.rawValue?.trim();
-      if (raw == null || raw.isEmpty) continue;
-      final size = barcode.size;
-      final area = size.width * size.height;
-      if (bestBarcode == null || area > bestArea) {
-        bestBarcode = barcode;
-        bestArea = area;
+        if (mounted) {
+          setState(() {
+            _isProcessingScan = false;
+          });
+        }
+        break;
       }
     }
-    final value = bestBarcode?.rawValue?.trim();
-    if (value == null || value.isEmpty) return;
-
-    _isScanned = true;
-    await _stop();
-    await SystemSound.play(SystemSoundType.click);
-    if (mounted) context.pop(value);
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    controller.stop();
-    controller.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -105,61 +65,169 @@ class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          icon: Icon(Icons.chevron_left, size: 28, color: Theme.of(context).primaryColor),
-          onPressed: () async {
-            await _stop();
-            if (mounted) context.pop();
-          },
-        ),
-        title: const Text(
-          'Scanner un code-barres',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-        ),
+        title: const Text('Scanner un article'),
+        actions: [
+          IconButton(
+            icon: ValueListenableBuilder(
+              valueListenable: _controller.torchState,
+              builder: (context, state, child) {
+                switch (state) {
+                  case TorchState.off:
+                    return const Icon(Icons.flash_off, color: Colors.grey);
+                  case TorchState.on:
+                    return const Icon(Icons.flash_on, color: Colors.yellow);
+                }
+              },
+            ),
+            onPressed: () => _controller.toggleTorch(),
+          ),
+          IconButton(
+            icon: ValueListenableBuilder(
+              valueListenable: _controller.cameraFacingState,
+              builder: (context, state, child) {
+                return const Icon(Icons.cameraswitch);
+              },
+            ),
+            onPressed: () => _controller.switchCamera(),
+          ),
+        ],
       ),
       body: Stack(
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // Zone large et horizontale : les petits codes 1D sur des
-              // surfaces cylindriques ont besoin de plus de largeur et
-              // d'une hauteur suffisante pour conserver toutes les barres.
-              final scanWindow = Rect.fromLTWH(
-                constraints.maxWidth * 0.02,
-                constraints.maxHeight * 0.33,
-                constraints.maxWidth * 0.96,
-                constraints.maxHeight * 0.34,
-              );
-              return MobileScanner(
-                controller: controller,
-                onDetect: _onDetect,
-                fit: BoxFit.cover,
-                scanWindow: scanWindow,
-              );
-            },
+          MobileScanner(
+            controller: _controller,
+            onDetect: _onDetect,
           ),
-          Center(
-            child: Container(
-              width: MediaQuery.of(context).size.width * 0.88,
-              height: 120,
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.greenAccent, width: 2),
-                borderRadius: BorderRadius.circular(14),
+          Container(
+            decoration: ShapeDecoration(
+              shape: QrScannerOverlayShape(
+                borderColor: Theme.of(context).primaryColor,
+                borderRadius: 12,
+                borderLength: 30,
+                borderWidth: 8,
+                cutOutSize: MediaQuery.of(context).size.width * 0.75,
               ),
             ),
           ),
-          const Positioned(
-            bottom: 40,
-            left: 16,
-            right: 16,
-            child: Text(
-              'Placez le code horizontalement dans le cadre. Gardez l\'objet immobile, à bonne distance, et évitez les reflets directs.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+          if (_isProcessingScan)
+            const Center(
+              child: CircularProgressIndicator(),
             ),
-          ),
         ],
       ),
     );
   }
+}
+
+class QrScannerOverlayShape extends ShapeBorder {
+  final Color borderColor;
+  final double borderWidth;
+  final double borderRadius;
+  final double borderLength;
+  final double cutOutSize;
+
+  const QrScannerOverlayShape({
+    this.borderColor = Colors.blue,
+    this.borderWidth = 8.0,
+    this.borderRadius = 12.0,
+    this.borderLength = 30.0,
+    this.cutOutSize = 250.0,
+  });
+
+  @override
+  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
+    return Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: rect.center,
+            width: cutOutSize,
+            height: cutOutSize,
+          ),
+          Radius.circular(borderRadius),
+        ),
+      );
+  }
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
+    return Path()..addRect(rect);
+  }
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    final width = rect.width;
+    final height = rect.height;
+    final boxRect = Rect.fromCenter(
+      center: rect.center,
+      width: cutOutSize,
+      height: cutOutSize,
+    );
+
+    final backgroundPaint = Paint()
+      ..color = Colors.black54
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    final cutOutPath = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          boxRect,
+          Radius.circular(borderRadius),
+        ),
+      );
+
+    final backgroundPath = Path()
+      ..addRect(Rect.fromLTWH(0, 0, width, height));
+
+    canvas.drawPath(
+      Path.combine(PathOperation.difference, backgroundPath, cutOutPath),
+      backgroundPaint,
+    );
+
+    final path = Path();
+    path.moveTo(boxRect.left, boxRect.top + borderLength);
+    path.lineTo(boxRect.left, boxRect.top + borderRadius);
+    path.arcToPoint(
+      Offset(boxRect.left + borderRadius, boxRect.top),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(boxRect.left + borderLength, boxRect.top);
+
+    path.moveTo(boxRect.right - borderLength, boxRect.top);
+    path.lineTo(boxRect.right - borderRadius, boxRect.top);
+    path.arcToPoint(
+      Offset(boxRect.right, boxRect.top + borderRadius),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(boxRect.right, boxRect.top + borderLength);
+
+    path.moveTo(boxRect.right, boxRect.bottom - borderLength);
+    path.lineTo(boxRect.right, boxRect.bottom - borderRadius);
+    path.arcToPoint(
+      Offset(boxRect.right - borderRadius, boxRect.bottom),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(boxRect.right - borderLength, boxRect.bottom);
+
+    path.moveTo(boxRect.left + borderLength, boxRect.bottom);
+    path.lineTo(boxRect.left + borderRadius, boxRect.bottom);
+    path.arcToPoint(
+      Offset(boxRect.left, boxRect.bottom - borderRadius),
+      radius: Radius.circular(borderRadius),
+    );
+    path.lineTo(boxRect.left, boxRect.bottom - borderLength);
+
+    canvas.drawPath(path, borderPaint);
+  }
+
+  @override
+  ShapeBorder scale(double t) => this;
 }
