@@ -22,10 +22,10 @@ class HomePage extends StatelessWidget {
       ),
       body: BlocConsumer<BillingBloc, BillingState>(
         listener: (context, state) {
-          if (state.errorMessage != null) {
+          if (state.error != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.errorMessage!),
+                content: Text(state.error!),
                 backgroundColor: Colors.red,
               ),
             );

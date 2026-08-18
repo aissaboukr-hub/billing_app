@@ -7,10 +7,6 @@ import '../../../shop/presentation/bloc/shop_bloc.dart';
 import '../bloc/billing_bloc.dart';
 import '../../../../core/utils/app_formatters.dart';
 
-import '../bloc/billing_bloc.dart';
-import '../bloc/billing_event.dart';
-import '../bloc/billing_state.dart';
-
 class CheckoutPage extends StatefulWidget {
   const CheckoutPage({super.key});
 
