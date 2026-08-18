@@ -39,16 +39,3 @@ flutter build apk --release
 ```
 
 Le SDK Flutter n'est pas installé dans l'environnement qui a préparé cette archive ; une validation finale doit donc être faite dans ton environnement Flutter/Codemagic.
-
-
-## Scanner robuste
-
-- Gestion manuelle du cycle de vie de `mobile_scanner` (`autoStart: false`) pour éviter les blocages après navigation.
-- Détection `normal` avec timeout 150 ms pour une meilleure réactivité.
-- Formats 1D courants (EAN/UPC/Code 128/39/93/ITF) + QR Code.
-- Fenêtre de scan large et horizontale, adaptée aux codes-barres imprimés sur des objets cylindriques.
-- Zoom manuel 1x / 1,5x / 2x.
-- Redémarrage contrôlé après chaque scan et après retour d'une autre page.
-- Aucun retour à la vibration.
-
-La version conserve `mobile_scanner` 5.2.3 afin de limiter les changements de compatibilité. Cette version prend en charge la fenêtre de scan et le contrôle du zoom.

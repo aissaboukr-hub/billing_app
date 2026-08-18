@@ -1,8 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../bloc/billing_bloc.dart';
-import '../bloc/billing_event.dart';
+import 'package:go_router/go_router.dart';
+import 'package:flutter/services.dart';
 
 class ScannerPage extends StatefulWidget {
   const ScannerPage({super.key});
@@ -11,198 +12,155 @@ class ScannerPage extends StatefulWidget {
   State<ScannerPage> createState() => _ScannerPageState();
 }
 
-class _ScannerPageState extends State<ScannerPage> {
-  final MobileScannerController _controller = MobileScannerController(
+class _ScannerPageState extends State<ScannerPage> with WidgetsBindingObserver {
+  final MobileScannerController controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.noDuplicates,
-    facing: CameraFacing.back,
-    torchEnabled: false,
+    returnImage: false,
   );
+  bool _isScanned = false;
+  bool _scanLocked = false;
+  Timer? _scanCooldownTimer;
+  static const Duration _scanCooldown = Duration(milliseconds: 1800);
 
-  bool _isProcessingScan = false;
-  bool _torchEnabled = false;
-  bool _usingFrontCamera = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
 
-  void _onDetect(BarcodeCapture capture) async {
-    if (_isProcessingScan) return;
-
-    for (final barcode in capture.barcodes) {
-      final rawValue = barcode.rawValue;
-      if (rawValue != null && rawValue.isNotEmpty) {
-        setState(() => _isProcessingScan = true);
-        context.read<BillingBloc>().add(ScanBarcodeEvent(rawValue));
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Code scanné : $rawValue'),
-            duration: const Duration(milliseconds: 800),
-          ),
-        );
-
-        await Future.delayed(const Duration(milliseconds: 1500));
-        if (mounted) setState(() => _isProcessingScan = false);
-        break;
-      }
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (mounted && !_isScanned) controller.start();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      controller.stop();
     }
-  }
-
-  Future<void> _toggleTorch() async {
-    await _controller.toggleTorch();
-    if (mounted) setState(() => _torchEnabled = !_torchEnabled);
-  }
-
-  Future<void> _switchCamera() async {
-    await _controller.switchCamera();
-    if (mounted) setState(() => _usingFrontCamera = !_usingFrontCamera);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+
+    _scanCooldownTimer?.cancel();
+    controller.dispose();
     super.dispose();
+  }
+
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    // Verrou immédiat contre les callbacks répétés du moteur de scan.
+    if (_isScanned || _scanLocked || !mounted) return;
+
+    final rawValue = capture.barcodes
+        .map((barcode) => barcode.rawValue)
+        .whereType<String>()
+        .map((value) => value.trim())
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+
+    if (rawValue.isEmpty) return;
+
+    _scanLocked = true;
+    _isScanned = true;
+
+    try {
+      // Stop avant de traiter le résultat : aucune seconde détection ne peut
+      // être traitée pendant cette transition.
+      await controller.stop();
+      await SystemSound.play(SystemSoundType.click);
+      if (mounted) {
+        context.pop(rawValue);
+      }
+    } catch (_) {
+      _isScanned = false;
+      _scanLocked = false;
+    } finally {
+      _scanCooldownTimer?.cancel();
+      _scanCooldownTimer = Timer(_scanCooldown, () {
+        _scanLocked = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scanner un article'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              _torchEnabled ? Icons.flash_on : Icons.flash_off,
-              color: _torchEnabled ? Colors.yellow : Colors.grey,
-            ),
-            onPressed: _toggleTorch,
+          leading: IconButton(
+            icon: Icon(Icons.chevron_left,
+                size: 28, color: Theme.of(context).primaryColor),
+            onPressed: () => context.pop(),
           ),
-          IconButton(
-            icon: Icon(
-              _usingFrontCamera
-                  ? Icons.camera_front
-                  : Icons.camera_rear,
-            ),
-            onPressed: _switchCamera,
-          ),
-        ],
-      ),
+          title: const Text('Scanner un code-barres',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18))),
       body: Stack(
         children: [
           MobileScanner(
-            controller: _controller,
+            controller: controller,
             onDetect: _onDetect,
+            // Removed overlay property
           ),
+          // Simple border overlay manually
           Container(
-            decoration: ShapeDecoration(
-              shape: QrScannerOverlayShape(
-                borderColor: Theme.of(context).primaryColor,
-                borderRadius: 12,
-                borderLength: 30,
-                borderWidth: 8,
-                cutOutSize: MediaQuery.of(context).size.width * 0.75,
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.transparent, width: 0),
+            ),
+            child: Center(
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.green, width: 2),
+                  // borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(5.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _corner(0),
+                          _corner(1),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _corner(3),
+                          _corner(2),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-          if (_isProcessingScan)
-            const Center(child: CircularProgressIndicator()),
+          const Positioned(
+            bottom: 40,
+            left: 0,
+            right: 0,
+            child: Text(
+              'Alignez le code-barres dans le cadre',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 16),
+            ),
+          ),
         ],
       ),
     );
   }
-}
 
-class QrScannerOverlayShape extends ShapeBorder {
-  final Color borderColor;
-  final double borderWidth;
-  final double borderRadius;
-  final double borderLength;
-  final double cutOutSize;
-
-  const QrScannerOverlayShape({
-    this.borderColor = Colors.blue,
-    this.borderWidth = 8.0,
-    this.borderRadius = 12.0,
-    this.borderLength = 30.0,
-    this.cutOutSize = 250.0,
-  });
-
-  @override
-  EdgeInsetsGeometry get dimensions => EdgeInsets.zero;
-
-  @override
-  Path getInnerPath(Rect rect, {TextDirection? textDirection}) {
-    return Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: rect.center,
-            width: cutOutSize,
-            height: cutOutSize,
-          ),
-          Radius.circular(borderRadius),
-        ),
-      );
-  }
-
-  @override
-  Path getOuterPath(Rect rect, {TextDirection? textDirection}) {
-    return Path()..addRect(rect);
-  }
-
-  @override
-  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
-    final boxRect = Rect.fromCenter(
-      center: rect.center,
-      width: cutOutSize,
-      height: cutOutSize,
+  Widget _corner(int index) {
+    return Container(
+      width: 15,
+      height: 15,
+      decoration: BoxDecoration(
+        color: Colors.transparent,
+        border: Border.all(color: Colors.white, width: 2),
+      ),
     );
-
-    final backgroundPaint = Paint()
-      ..color = Colors.black54
-      ..style = PaintingStyle.fill;
-
-    final borderPaint = Paint()
-      ..color = borderColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = borderWidth;
-
-    final cutOutPath = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          boxRect,
-          Radius.circular(borderRadius),
-        ),
-      );
-
-    final fullPath = Path()..addRect(rect);
-    final overlayPath = Path.combine(
-      PathOperation.difference,
-      fullPath,
-      cutOutPath,
-    );
-    canvas.drawPath(overlayPath, backgroundPaint);
-
-    final left = boxRect.left;
-    final right = boxRect.right;
-    final top = boxRect.top;
-    final bottom = boxRect.bottom;
-    final r = borderRadius;
-    final l = borderLength;
-
-    canvas.drawLine(Offset(left, top + l), Offset(left, top + r), borderPaint);
-    canvas.drawLine(Offset(left + r, top), Offset(left + l, top), borderPaint);
-    canvas.drawLine(Offset(right - l, top), Offset(right - r, top), borderPaint);
-    canvas.drawLine(Offset(right, top + r), Offset(right, top + l), borderPaint);
-    canvas.drawLine(Offset(left, bottom - l), Offset(left, bottom - r), borderPaint);
-    canvas.drawLine(Offset(left + r, bottom), Offset(left + l, bottom), borderPaint);
-    canvas.drawLine(Offset(right - l, bottom), Offset(right - r, bottom), borderPaint);
-    canvas.drawLine(Offset(right, bottom - r), Offset(right, bottom - l), borderPaint);
   }
-
-  @override
-  ShapeBorder scale(double t) => QrScannerOverlayShape(
-        borderColor: borderColor,
-        borderWidth: borderWidth * t,
-        borderRadius: borderRadius * t,
-        borderLength: borderLength * t,
-        cutOutSize: cutOutSize * t,
-      );
 }

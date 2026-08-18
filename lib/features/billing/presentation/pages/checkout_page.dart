@@ -5,8 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../shop/presentation/bloc/shop_bloc.dart';
 import '../bloc/billing_bloc.dart';
-import '../bloc/billing_event.dart';
-import '../bloc/billing_state.dart';
 import '../../../../core/utils/app_formatters.dart';
 
 class CheckoutPage extends StatefulWidget {

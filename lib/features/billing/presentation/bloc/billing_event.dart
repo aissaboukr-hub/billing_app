@@ -1,49 +1,41 @@
-import 'package:equatable/equatable.dart';
-import '../../../product/domain/entities/product.dart';
+part of 'billing_bloc.dart';
 
 abstract class BillingEvent extends Equatable {
   const BillingEvent();
-
   @override
-  List<Object?> get props => [];
+  List<Object> get props => [];
 }
 
 class ScanBarcodeEvent extends BillingEvent {
   final String barcode;
   const ScanBarcodeEvent(this.barcode);
-
   @override
-  List<Object?> get props => [barcode];
+  List<Object> get props => [barcode];
 }
 
 class AddProductToCartEvent extends BillingEvent {
   final Product product;
   const AddProductToCartEvent(this.product);
-
   @override
-  List<Object?> get props => [product];
+  List<Object> get props => [product];
 }
 
 class RemoveProductFromCartEvent extends BillingEvent {
   final String productId;
   const RemoveProductFromCartEvent(this.productId);
-
   @override
-  List<Object?> get props => [productId];
+  List<Object> get props => [productId];
 }
 
 class UpdateQuantityEvent extends BillingEvent {
   final String productId;
   final int quantity;
   const UpdateQuantityEvent(this.productId, this.quantity);
-
   @override
-  List<Object?> get props => [productId, quantity];
+  List<Object> get props => [productId, quantity];
 }
 
-class ClearCartEvent extends BillingEvent {
-  const ClearCartEvent();
-}
+class ClearCartEvent extends BillingEvent {}
 
 class PrintReceiptEvent extends BillingEvent {
   final String shopName;
@@ -61,5 +53,5 @@ class PrintReceiptEvent extends BillingEvent {
   });
 
   @override
-  List<Object?> get props => [shopName, address1, address2, phone, footer];
+  List<Object> get props => [shopName, address1, address2, phone, footer];
 }

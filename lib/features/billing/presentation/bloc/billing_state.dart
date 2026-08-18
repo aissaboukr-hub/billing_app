@@ -1,5 +1,4 @@
-import 'package:equatable/equatable.dart';
-import '../../domain/entities/cart_item.dart';
+part of 'billing_bloc.dart';
 
 class BillingState extends Equatable {
   final List<CartItem> cartItems;
@@ -14,8 +13,7 @@ class BillingState extends Equatable {
     this.printSuccess = false,
   });
 
-  double get totalAmount =>
-      cartItems.fold(0.0, (sum, item) => sum + item.total);
+  double get totalAmount => cartItems.fold(0, (sum, item) => sum + item.total);
 
   BillingState copyWith({
     List<CartItem>? cartItems,

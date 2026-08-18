@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
             create: (context) => di.sl<ShopBloc>()..add(LoadShopEvent())),
         BlocProvider<BillingBloc>(
             create: (context) =>
-                BillingBloc(productRepository: di.sl())),
+                BillingBloc(getProductByBarcodeUseCase: di.sl())),
         BlocProvider<PrinterBloc>(
             create: (context) => di.sl<PrinterBloc>()..add(InitPrinterEvent())),
       ],
