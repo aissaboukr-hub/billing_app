@@ -1,16 +1,16 @@
-import 'package:equatable/equatable.dart';
-import 'package:billing_app/features/product/domain/entities/product.dart';
+import '../../../product/domain/entities/product.dart';
 
-class CartItem extends Equatable {
+class CartItem {
   final Product product;
   final int quantity;
 
   const CartItem({
     required this.product,
-    this.quantity = 1,
+    required this.quantity,
   });
 
-  double get total => product.price * quantity;
+  double get totalPrice => product.price * quantity;
+  double get total => totalPrice;
 
   CartItem copyWith({
     Product? product,
@@ -21,7 +21,4 @@ class CartItem extends Equatable {
       quantity: quantity ?? this.quantity,
     );
   }
-
-  @override
-  List<Object> get props => [product, quantity];
 }

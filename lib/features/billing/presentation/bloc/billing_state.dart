@@ -1,35 +1,31 @@
-part of 'billing_bloc.dart';
+import 'package:equatable/equatable.dart';
+import '../../domain/entities/cart_item.dart';
 
 class BillingState extends Equatable {
   final List<CartItem> cartItems;
-  final String? error;
   final bool isPrinting;
-  final bool printSuccess;
+  final String? errorMessage;
 
   const BillingState({
     this.cartItems = const [],
-    this.error,
     this.isPrinting = false,
-    this.printSuccess = false,
+    this.errorMessage,
   });
 
-  double get totalAmount => cartItems.fold(0, (sum, item) => sum + item.total);
+  double get totalAmount => cartItems.fold(0.0, (sum, item) => sum + item.total);
 
   BillingState copyWith({
     List<CartItem>? cartItems,
-    String? error,
-    bool clearError = false,
     bool? isPrinting,
-    bool? printSuccess,
+    String? errorMessage,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
-      error: clearError ? null : (error ?? this.error),
       isPrinting: isPrinting ?? this.isPrinting,
-      printSuccess: printSuccess ?? this.printSuccess,
+      errorMessage: errorMessage,
     );
   }
 
   @override
-  List<Object?> get props => [cartItems, error, isPrinting, printSuccess];
+  List<Object?> get props => [cartItems, isPrinting, errorMessage];
 }
