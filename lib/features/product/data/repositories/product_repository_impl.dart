@@ -21,8 +21,9 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<Either<Failure, Product>> getProductByBarcode(String barcode) async {
     try {
       final box = HiveDatabase.productBox;
+      final normalizedBarcode = barcode.trim().toUpperCase();
       final product = box.values.firstWhere(
-        (element) => element.barcode == barcode,
+        (element) => element.barcode.trim().toUpperCase() == normalizedBarcode,
         orElse: () => throw Exception('Produit introuvable'),
       );
       return Right(product);

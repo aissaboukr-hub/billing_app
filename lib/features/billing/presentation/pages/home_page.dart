@@ -108,7 +108,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    _douchetteBuffer.write(character);
+    // Les douchettes sont traitées en mode clavier : on normalise
+    // immédiatement les lettres en MAJUSCULES pour garantir une recherche
+    // cohérente avec les codes-barres enregistrés.
+    _douchetteBuffer.write(character.toUpperCase());
     _douchetteInputTimer?.cancel();
     // Si le scanner n'est pas configuré avec un suffixe, le silence entre
     // deux scans finalise automatiquement le code reçu.
@@ -117,7 +120,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _submitDouchetteBarcode() {
     _douchetteInputTimer?.cancel();
-    final barcode = _douchetteBuffer.toString().trim();
+    final barcode = _douchetteBuffer.toString().trim().toUpperCase();
     _douchetteBuffer.clear();
     if (barcode.isEmpty || _scanLocked || !_douchetteMode || _searchMode || !mounted) {
       return;

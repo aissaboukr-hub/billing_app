@@ -25,10 +25,11 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
 
   Future<void> _onScanBarcode(
       ScanBarcodeEvent event, Emitter<BillingState> emit) async {
-    final result = await getProductByBarcodeUseCase(event.barcode);
+    final barcode = event.barcode.trim().toUpperCase();
+    final result = await getProductByBarcodeUseCase(barcode);
     result.fold(
       (failure) =>
-          emit(state.copyWith(error: 'Produit introuvable : ${event.barcode}')),
+          emit(state.copyWith(error: 'Produit introuvable : $barcode')),
       (product) {
         add(AddProductToCartEvent(product));
       },
