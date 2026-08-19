@@ -89,6 +89,30 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  /// Corrige les caractères produits par une douchette configurée
+  /// comme clavier US lorsqu'Android/Windows utilise un clavier AZERTY.
+  ///
+  /// Exemple : le code 0703625667039 peut arriver comme
+  /// `èà\"-é(--èà\"ç` avec un mapping AZERTY de la rangée des chiffres.
+  String _normalizeDouchetteCharacter(String character) {
+    const azertyNumberRow = <String, String>{
+      'à': '0',
+      'è': '7',
+      'é': '2',
+      '"': '3',
+      '-': '6',
+      '(': '5',
+      'ç': '9',
+      '_': '8',
+      '§': '6',
+      '&': '1',
+      ''': '4',
+      '=': '0',
+    };
+
+    return azertyNumberRow[character] ?? character.toUpperCase();
+  }
+
   void _onDouchetteKey(KeyEvent event) {
     if (!_douchetteMode || _searchMode || !mounted) return;
     if (event is! KeyDownEvent) return;
@@ -108,14 +132,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
 
-    // Les douchettes sont traitées en mode clavier : on normalise
-    // immédiatement les lettres en MAJUSCULES pour garantir une recherche
-    // cohérente avec les codes-barres enregistrés.
-    _douchetteBuffer.write(character.toUpperCase());
+    // Une douchette HID envoie des touches de clavier. Avec un clavier
+    // AZERTY, la rangée numérique peut être interprétée comme èà\"-é...
+    // On remet donc ces caractères dans les chiffres du code-barres.
+    final normalizedCharacter = _normalizeDouchetteCharacter(character);
+    _douchetteBuffer.write(normalizedCharacter);
     _douchetteInputTimer?.cancel();
+
     // Si le scanner n'est pas configuré avec un suffixe, le silence entre
     // deux scans finalise automatiquement le code reçu.
-    _douchetteInputTimer = Timer(_douchetteInputTimeout, _submitDouchetteBarcode);
+    _douchetteInputTimer = Timer(
+      _douchetteInputTimeout,
+      _submitDouchetteBarcode,
+    );
   }
 
   void _submitDouchetteBarcode() {
