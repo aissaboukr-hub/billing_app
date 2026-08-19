@@ -106,7 +106,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       '_': '8',
       '§': '6',
       '&': '1',
-      ''': '4',
       '=': '0',
     };
 
