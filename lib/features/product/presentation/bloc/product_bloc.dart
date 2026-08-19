@@ -27,7 +27,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   Future<void> _onLoadProducts(
       LoadProducts event, Emitter<ProductState> emit) async {
-    emit(state.copyWith(status: ProductStatus.loading, clearMessage: true));
+    emit(state.copyWith(status: ProductStatus.loading));
     final result = await getProductsUseCase(NoParams());
     result.fold(
       (failure) => emit(state.copyWith(
@@ -39,7 +39,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   Future<void> _onAddProduct(
       AddProduct event, Emitter<ProductState> emit) async {
-    emit(state.copyWith(status: ProductStatus.loading, clearMessage: true)); // Keep products
+    emit(state.copyWith(status: ProductStatus.loading)); // Keep products
     final result = await addProductUseCase(event.product);
     result.fold(
       (failure) => emit(state.copyWith(
@@ -55,7 +55,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   Future<void> _onUpdateProduct(
       UpdateProduct event, Emitter<ProductState> emit) async {
-    emit(state.copyWith(status: ProductStatus.loading, clearMessage: true));
+    emit(state.copyWith(status: ProductStatus.loading));
     final result = await updateProductUseCase(event.product);
     result.fold(
       (failure) => emit(state.copyWith(
@@ -71,7 +71,7 @@ class ProductBloc extends Bloc<ProductEvent, ProductState> {
 
   Future<void> _onDeleteProduct(
       DeleteProduct event, Emitter<ProductState> emit) async {
-    emit(state.copyWith(status: ProductStatus.loading, clearMessage: true));
+    emit(state.copyWith(status: ProductStatus.loading));
     final result = await deleteProductUseCase(event.id);
     result.fold(
       (failure) => emit(state.copyWith(

@@ -10,7 +10,6 @@ import '../bloc/printer_event.dart';
 import '../bloc/printer_state.dart';
 import '../../../auth/data/auth_service.dart';
 import '../../../../core/data/hive_database.dart';
-import '../../../../core/service_locator.dart' as di;
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -224,7 +223,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _buildListItem(icon: Icons.cloud_upload, title: 'URL Google Sheets', subtitle: 'Configurer l’URL Google Apps Script pour les ventes', onTap: _configureGoogleSheets),
             ]),
             const SizedBox(height: 16),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: OutlinedButton.icon(onPressed: () async { await di.sl<AuthService>().logout(); if (context.mounted) context.go('/login'); }, icon: const Icon(Icons.logout), label: const Text('Se déconnecter'))),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: OutlinedButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) context.go('/login'); }, icon: const Icon(Icons.logout), label: const Text('Se déconnecter'))),
             const SizedBox(height: 48),
           ],
         ),

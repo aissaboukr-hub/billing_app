@@ -70,6 +70,16 @@ class _ReturnPageState extends State<ReturnPage> {
                     suffixIcon: IconButton(onPressed: _searchController.clear, icon: const Icon(Icons.clear)),
                   ),
                   onChanged: (_) => setState(() {}),
+                  onSubmitted: (value) {
+                    final barcode = value.trim().toLowerCase();
+                    if (barcode.isEmpty) return;
+                    final matches = state.products
+                        .where((p) => p.barcode.trim().toLowerCase() == barcode)
+                        .toList();
+                    if (matches.length == 1) {
+                      setState(() => _selectedProduct = matches.first);
+                    }
+                  },
                 ),
                 const SizedBox(height: 12),
                 Expanded(

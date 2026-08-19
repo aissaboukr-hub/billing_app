@@ -30,7 +30,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isCameraOn = true;
   bool _isFlashOn = false;
   bool _searchMode = false;
+  // Mode de lecture par défaut : douchette (USB/Bluetooth type clavier).
+  // La caméra reste disponible via le bouton de bascule.
+  bool _douchetteMode = true;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _douchetteFocusNode = FocusNode(debugLabel: 'douchette_barcode');
+  final StringBuffer _douchetteBuffer = StringBuffer();
+  Timer? _douchetteInputTimer;
+  static const Duration _douchetteInputTimeout = Duration(milliseconds: 120);
 
   // Verrouillage anti-déclenchements répétés du scanner.
   // Même si MobileScanner envoie plusieurs captures très rapidement,
@@ -49,7 +56,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_isCameraOn && !_searchMode && mounted) {
+      if (_douchetteMode && !_searchMode && mounted) {
+        _requestDouchetteFocus();
+      } else if (_isCameraOn && !_searchMode && mounted) {
         _scannerController.start();
       }
     } else if (state == AppLifecycleState.inactive ||
@@ -64,15 +73,66 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
 
     _scanUnlockTimer?.cancel();
+    _douchetteInputTimer?.cancel();
+    _douchetteFocusNode.dispose();
     _scannerController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _requestDouchetteFocus() {
+    if (!mounted || !_douchetteMode || _searchMode) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _douchetteMode && !_searchMode) {
+        _douchetteFocusNode.requestFocus();
+      }
+    });
+  }
+
+  void _onDouchetteKey(KeyEvent event) {
+    if (!_douchetteMode || _searchMode || !mounted) return;
+    if (event is! KeyDownEvent) return;
+
+    // La plupart des douchettes USB/Bluetooth sont vues comme un clavier
+    // et terminent le code par Entrée. On accepte aussi Tab comme suffixe.
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      _submitDouchetteBarcode();
+      return;
+    }
+
+    final character = event.character;
+    if (character == null || character.length != 1 ||
+        character.codeUnitAt(0) < 32) {
+      return;
+    }
+
+    _douchetteBuffer.write(character);
+    _douchetteInputTimer?.cancel();
+    // Si le scanner n'est pas configuré avec un suffixe, le silence entre
+    // deux scans finalise automatiquement le code reçu.
+    _douchetteInputTimer = Timer(_douchetteInputTimeout, _submitDouchetteBarcode);
+  }
+
+  void _submitDouchetteBarcode() {
+    _douchetteInputTimer?.cancel();
+    final barcode = _douchetteBuffer.toString().trim();
+    _douchetteBuffer.clear();
+    if (barcode.isEmpty || _scanLocked || !_douchetteMode || _searchMode || !mounted) {
+      return;
+    }
+
+    _scanLocked = true;
+    // Le même verrou que la caméra est utilisé pour empêcher les doubles
+    // lectures provenant d'une douchette qui envoie plusieurs événements.
+    context.read<BillingBloc>().add(ScanBarcodeEvent(barcode));
+  }
+
   Future<void> _onDetect(BarcodeCapture capture) async {
     // Verrou immédiat : le callback peut être appelé plusieurs fois avant
     // même que le premier traitement asynchrone soit terminé.
-    if (_scanLocked || !mounted || !_isCameraOn || _searchMode) return;
+    if (_scanLocked || !mounted || !_isCameraOn || _douchetteMode || _searchMode) return;
 
     final rawValue = capture.barcodes
         .map((barcode) => barcode.rawValue)
@@ -116,7 +176,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _restartScanner() async {
-    if (!mounted || !_isCameraOn || _searchMode) return;
+    if (!mounted || !_isCameraOn || _douchetteMode || _searchMode) return;
     try {
       // Toujours arrêter puis redémarrer proprement le contrôleur.
       await _scannerController.stop();
@@ -154,8 +214,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: BlocListener<BillingBloc, BillingState>(
+    return KeyboardListener(
+      focusNode: _douchetteFocusNode,
+      autofocus: _douchetteMode && !_searchMode,
+      onKeyEvent: _onDouchetteKey,
+      child: Scaffold(
+        body: BlocListener<BillingBloc, BillingState>(
         listenWhen: (previous, current) {
           final cartChanged = previous.cartItems != current.cartItems;
           final errorChanged = previous.error != current.error;
@@ -165,7 +229,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           if (state.error != null) {
             await SystemSound.play(SystemSoundType.alert);
             _showTopBanner(state.error!, error: true);
-            await _restartScanner();
+            if (!_douchetteMode) {
+              await _restartScanner();
+            } else {
+              _requestDouchetteFocus();
+            }
             if (_scanLocked) _releaseScanLock();
             return;
           }
@@ -180,7 +248,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _showTopBanner(last == null
                 ? 'Article ajouté au panier'
                 : '$last ajouté au panier');
-            await _restartScanner();
+            if (!_douchetteMode) {
+              await _restartScanner();
+            } else {
+              _requestDouchetteFocus();
+            }
             _releaseScanLock();
           }
         },
@@ -220,11 +292,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           label: 'Vérifier la vente',
         );
       }),
+      ),
     );
   }
 
   Widget _buildScannerSection() {
     if (_searchMode) return _buildSearchSection();
+    if (_douchetteMode) return _buildDouchetteSection();
     return Container(
       color: Colors.black,
       child: Stack(
@@ -292,6 +366,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   // color:  Colors.white24 ,
                   onPressed: () {
                     setState(() {
+                      _douchetteMode = false;
                       _isCameraOn = !_isCameraOn;
                     });
                     if (_isCameraOn) {
@@ -331,6 +406,109 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildDouchetteSection() {
+    return Container(
+      color: const Color(0xFF0F172A),
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + 20, 20, 20),
+      child: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.greenAccent, width: 2),
+                  ),
+                  child: const Icon(Icons.qr_code_scanner, color: Colors.greenAccent, size: 48),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Douchette code-barres active',
+                  style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Scannez un code-barres avec la douchette USB ou Bluetooth.',
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Prêt à scanner',
+                    style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Column(
+              children: [
+                _buildOverlayButton(
+                  icon: Icons.videocam,
+                  onPressed: () async {
+                    setState(() {
+                      _douchetteMode = false;
+                      _isCameraOn = true;
+                    });
+                    await _scannerController.start();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
+                  icon: Icons.manage_search,
+                  onPressed: () {
+                    setState(() => _searchMode = true);
+                    _douchetteFocusNode.unfocus();
+                    _requestDouchetteFocus();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
+                  icon: Icons.assignment_return,
+                  onPressed: () async {
+                    await context.push('/returns');
+                    _requestDouchetteFocus();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
+                  icon: Icons.history,
+                  onPressed: () async {
+                    await context.push('/history');
+                    _requestDouchetteFocus();
+                  },
+                ),
+                const SizedBox(height: 16),
+                _buildOverlayButton(
+                  icon: Icons.settings,
+                  onPressed: () async {
+                    await context.push('/settings');
+                    _requestDouchetteFocus();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSearchSection() {
     return Container(
       color: Theme.of(context).scaffoldBackgroundColor,
@@ -338,8 +516,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text('Rechercher un produit', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold))),
-          IconButton(onPressed: () { setState(() => _searchMode = false); _restartScanner(); }, icon: const Icon(Icons.qr_code_scanner), tooltip: 'Scanner'),
-          IconButton(onPressed: () { setState(() => _searchMode = false); _restartScanner(); }, icon: const Icon(Icons.close)),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _searchMode = false;
+                _douchetteMode = true;
+                _isCameraOn = false;
+              });
+              _scannerController.stop();
+              _requestDouchetteFocus();
+            },
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Douchette',
+          ),
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _searchMode = false;
+                _douchetteMode = true;
+                _isCameraOn = false;
+              });
+              _scannerController.stop();
+              _requestDouchetteFocus();
+            },
+            icon: const Icon(Icons.close),
+          ),
         ]),
         const SizedBox(height: 12),
         TextField(
