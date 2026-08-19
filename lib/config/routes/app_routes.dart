@@ -13,9 +13,10 @@ import '../../features/auth/data/auth_service.dart';
 import '../../features/data_transfer/presentation/pages/import_export_page.dart';
 import '../../features/history/presentation/pages/history_page.dart';
 import '../../features/product/domain/entities/product.dart';
+import '../../core/service_locator.dart' as di;
 
 GoRouter buildRouter() {
-  final auth = AuthService();
+  final auth = di.sl<AuthService>();
   return GoRouter(
   initialLocation: auth.isLoggedIn ? '/' : '/login',
   redirect: (context, state) {

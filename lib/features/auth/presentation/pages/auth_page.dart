@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/auth_service.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/service_locator.dart' as di;
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -14,7 +15,7 @@ class _AuthPageState extends State<AuthPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
-  final _auth = AuthService();
+  final _auth = di.sl<AuthService>();
   bool _register = false;
   bool _loading = false;
   bool _obscure = true;
