@@ -107,6 +107,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       '§': '6',
       '&': '1',
       '=': '0',
+      "'": '4',
     };
 
     return azertyNumberRow[character] ?? character.toUpperCase();
@@ -265,7 +266,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } else {
               _requestDouchetteFocus();
             }
-            if (_scanLocked) _releaseScanLock();
+            if (_scanLocked) {
+              if (_douchetteMode) {
+                // Une douchette doit pouvoir enchaîner les scans immédiatement.
+                // Le verrou de 1,8 s est réservé à la caméra.
+                _scanUnlockTimer?.cancel();
+                _scanLocked = false;
+              } else {
+                _releaseScanLock();
+              }
+            }
             return;
           }
 
@@ -284,7 +294,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } else {
               _requestDouchetteFocus();
             }
-            _releaseScanLock();
+            if (_douchetteMode) {
+              // Pas de cooldown long pour la douchette : elle peut scanner
+              // plusieurs articles à la suite.
+              _scanUnlockTimer?.cancel();
+              _scanLocked = false;
+            } else {
+              _releaseScanLock();
+            }
           }
         },
         child: Stack(
