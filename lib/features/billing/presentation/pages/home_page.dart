@@ -151,14 +151,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _douchetteInputTimer?.cancel();
     final barcode = _douchetteBuffer.toString().trim().toUpperCase();
     _douchetteBuffer.clear();
-    if (barcode.isEmpty || _scanLocked || !_douchetteMode || _searchMode || !mounted) {
+    if (barcode.isEmpty || !_douchetteMode || _searchMode || !mounted) {
       return;
     }
 
-    _scanLocked = true;
-    // Le même verrou que la caméra est utilisé pour empêcher les doubles
-    // lectures provenant d'une douchette qui envoie plusieurs événements.
+    // Une douchette est déjà séquentielle : elle envoie un code complet puis
+    // passe au suivant. On ne doit PAS utiliser le verrou de la caméra ici.
+    // Sinon, lorsqu'un produit n'existe pas (ou que le BLoC conserve la même
+    // erreur), la douchette peut rester bloquée et ignorer les scans suivants.
     context.read<BillingBloc>().add(ScanBarcodeEvent(barcode));
+    _requestDouchetteFocus();
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
@@ -266,22 +268,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             } else {
               _requestDouchetteFocus();
             }
-            if (_scanLocked) {
-              if (_douchetteMode) {
-                // Une douchette doit pouvoir enchaîner les scans immédiatement.
-                // Le verrou de 1,8 s est réservé à la caméra.
-                _scanUnlockTimer?.cancel();
-                _scanLocked = false;
-              } else {
-                _releaseScanLock();
-              }
+            // La douchette ne dépend pas du verrou de la caméra. Même en
+            // cas de produit inexistant, le focus reste disponible pour le
+            // prochain scan. Le verrou reste uniquement utilisé par la caméra.
+            if (!_douchetteMode && _scanLocked) {
+              _releaseScanLock();
             }
             return;
           }
 
           // Si l'état vient d'un scan, le contrôleur a déjà été stoppé.
           // On le redémarre une seule fois puis on garde un court cooldown.
-          if (_scanLocked) {
+          if (_scanLocked && !_douchetteMode) {
             await SystemSound.play(SystemSoundType.click);
             final last = state.cartItems.isEmpty
                 ? null
@@ -289,19 +287,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _showTopBanner(last == null
                 ? 'Article ajouté au panier'
                 : '$last ajouté au panier');
-            if (!_douchetteMode) {
-              await _restartScanner();
-            } else {
-              _requestDouchetteFocus();
-            }
-            if (_douchetteMode) {
-              // Pas de cooldown long pour la douchette : elle peut scanner
-              // plusieurs articles à la suite.
-              _scanUnlockTimer?.cancel();
-              _scanLocked = false;
-            } else {
-              _releaseScanLock();
-            }
+            await _restartScanner();
+            _releaseScanLock();
+          } else if (_douchetteMode) {
+            // Après chaque résultat, succès ou échec, la douchette reste prête.
+            _requestDouchetteFocus();
           }
         },
         child: Stack(
