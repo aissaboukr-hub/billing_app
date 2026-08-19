@@ -57,5 +57,8 @@ Le SDK Flutter n'est pas installé dans l'environnement qui a préparé cette ar
   - `test/features/auth/auth_service_test.dart` — inscription, connexion, mot de passe incorrect, email dupliqué, hash jamais stocké en clair, déconnexion (Hive en mémoire temporaire).
   - `test/features/billing/billing_bloc_test.dart` — ajout au panier, fusion de quantités, code-barres inconnu, suppression, vidage du panier, calcul du total (avec un `FakeProductRepository` en mémoire).
   - `test/features/product/product_state_test.dart` — sémantique de `copyWith`/`clearMessage`.
-- Ajout de `bloc_test: ^9.1.7` en `dev_dependencies` (nécessaire pour `billing_bloc_test.dart`) — pense à lancer `flutter pub get` avant `flutter test`.
+- Aucune dépendance de test supplémentaire n'a été ajoutée : `billing_bloc_test.dart` écoute directement le `Stream<BillingState>` du bloc avec `flutter_test` seul (voir note ci-dessous — `bloc_test` a été essayé puis retiré à cause d'un conflit de résolution).
+
+### Correction post-build (Codemagic)
+- La première version ajoutait `bloc_test: ^9.1.7` en dev_dependency pour tester `BillingBloc`, ce qui provoquait un échec de `flutter pub get` : conflit de résolution avec `hive_generator ^2.0.1` (chaîne de contraintes sur `analyzer`/`test_api` incompatible avec la version de `flutter_test` épinglée par le SDK Flutter). `bloc_test` a été retiré du `pubspec.yaml` ; `test/features/billing/billing_bloc_test.dart` a été réécrit avec `flutter_test` seul (écoute manuelle du `Stream<BillingState>` exposé par le bloc), sans introduire de nouvelle dépendance.
 
