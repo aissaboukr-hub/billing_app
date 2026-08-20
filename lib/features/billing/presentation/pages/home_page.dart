@@ -435,7 +435,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             right: 0,
             child: _buildQuickActionsMenu(cameraMode: false),
           ),
-          ),
         ],
       ),
     );
