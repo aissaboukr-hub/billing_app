@@ -314,6 +314,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               bottom: 0,
               child: _buildBottomPanel(),
             ),
+
+            // MENU D'ACTIONS TOUJOURS AU PREMIER PLAN.
+            // Il est placé au niveau du Stack principal afin de rester
+            // cliquable même lorsque le panneau inférieur se superpose.
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 12,
+              right: 12,
+              child: Material(
+                type: MaterialType.transparency,
+                child: _buildQuickActionsMenu(
+                  cameraMode: !_douchetteMode && !_searchMode,
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -348,14 +362,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onDetect: _onDetect,
           ),
           if (!_isCameraOn) _buildCameraOffState(),
-
-          // Menu d'actions rapides compact : un seul bouton "⋮"
-          // remplace la colonne de boutons circulaires.
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 12,
-            right: 12,
-            child: _buildQuickActionsMenu(cameraMode: true),
-          ),
 
           // Central Overlay Bounding Box
           if (_isCameraOn)
@@ -429,11 +435,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ),
               ],
             ),
-          ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: _buildQuickActionsMenu(cameraMode: false),
           ),
         ],
       ),
@@ -582,17 +583,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         icon: cameraMode ? Icons.qr_code_scanner : Icons.videocam,
         label: cameraMode ? 'Douchette' : 'Caméra',
         onTap: () async {
-          setState(() {
-            _quickActionsExpanded = false;
-            _douchetteMode = !cameraMode;
-            _isCameraOn = !cameraMode;
-          });
+          // Bascule fiable entre douchette et caméra.
+          // On ferme le menu avant de changer le contenu du Stack, puis on
+          // démarre la caméra après la reconstruction du widget.
+          setState(() => _quickActionsExpanded = false);
 
           if (cameraMode) {
             await _scannerController.stop();
+            if (!mounted) return;
+            setState(() {
+              _douchetteMode = true;
+              _searchMode = false;
+              _isCameraOn = false;
+            });
             _requestDouchetteFocus();
           } else {
-            await _scannerController.start();
+            _douchetteFocusNode.unfocus();
+            _searchController.clear();
+            if (mounted) {
+              setState(() {
+                _douchetteMode = false;
+                _searchMode = false;
+                _isCameraOn = true;
+              });
+            }
+            await WidgetsBinding.instance.endOfFrame;
+            if (mounted) {
+              try {
+                await _scannerController.start();
+              } catch (_) {
+                // Le contrôleur sera relancé par le cycle de vie si nécessaire.
+              }
+            }
           }
         },
       ),
