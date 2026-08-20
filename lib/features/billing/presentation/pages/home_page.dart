@@ -349,8 +349,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           if (!_isCameraOn) _buildCameraOffState(),
 
-          // Menu d'actions rapides : un seul FAB pour garder l'écran propre.
-          _buildQuickActionsMenu(),
+          // Menu d'actions rapides compact : un seul bouton "⋮"
+          // remplace la colonne de boutons circulaires.
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 12,
+            right: 12,
+            child: _buildQuickActionsMenu(cameraMode: true),
+          ),
 
           // Central Overlay Bounding Box
           if (_isCameraOn)
@@ -425,8 +430,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ],
             ),
           ),
-          // Le même menu est utilisé en mode douchette pour garder une UX cohérente.
-          _buildQuickActionsMenu(),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: _buildQuickActionsMenu(cameraMode: false),
+          ),
+          ),
         ],
       ),
     );
@@ -568,210 +577,209 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildQuickActionsMenu() {
-    final top = MediaQuery.of(context).padding.top + 16;
+  Widget _buildQuickActionsMenu({required bool cameraMode}) {
+    final actions = <_QuickAction>[
+      _QuickAction(
+        icon: cameraMode ? Icons.qr_code_scanner : Icons.videocam,
+        label: cameraMode ? 'Douchette' : 'Caméra',
+        onTap: () async {
+          setState(() {
+            _quickActionsExpanded = false;
+            _douchetteMode = !cameraMode;
+            _isCameraOn = !cameraMode;
+          });
 
-    return Positioned(
-      top: top,
-      right: 16,
+          if (cameraMode) {
+            await _scannerController.stop();
+            _requestDouchetteFocus();
+          } else {
+            await _scannerController.start();
+          }
+        },
+      ),
+      _QuickAction(
+        icon: Icons.manage_search,
+        label: 'Rechercher un produit',
+        onTap: () async {
+          setState(() {
+            _quickActionsExpanded = false;
+            _searchMode = true;
+          });
+          _douchetteFocusNode.unfocus();
+          await _scannerController.stop();
+        },
+      ),
+      _QuickAction(
+        icon: Icons.assignment_return,
+        label: 'Gestion des retours',
+        onTap: () async {
+          setState(() => _quickActionsExpanded = false);
+          if (cameraMode) {
+            await _scannerController.stop();
+            await context.push('/returns');
+            await _restartScanner();
+          } else {
+            await context.push('/returns');
+            _requestDouchetteFocus();
+          }
+        },
+      ),
+      _QuickAction(
+        icon: Icons.history,
+        label: 'Historique',
+        onTap: () async {
+          setState(() => _quickActionsExpanded = false);
+          if (cameraMode) await _scannerController.stop();
+          await context.push('/history');
+          if (cameraMode) {
+            await _restartScanner();
+          } else {
+            _requestDouchetteFocus();
+          }
+        },
+      ),
+      _QuickAction(
+        icon: Icons.settings,
+        label: 'Paramètres',
+        onTap: () async {
+          setState(() => _quickActionsExpanded = false);
+          if (cameraMode) await _scannerController.stop();
+          await context.push('/settings');
+          if (cameraMode) {
+            await _restartScanner();
+          } else {
+            _requestDouchetteFocus();
+          }
+        },
+      ),
+      if (cameraMode)
+        _QuickAction(
+          icon: _isFlashOn ? Icons.flashlight_off : Icons.flashlight_on,
+          label: _isFlashOn ? 'Désactiver le flash' : 'Activer le flash',
+          onTap: () {
+            setState(() {
+              _isFlashOn = !_isFlashOn;
+              _quickActionsExpanded = false;
+            });
+            _scannerController.toggleTorch();
+          },
+        ),
+    ];
+
+    return Material(
+      color: Colors.transparent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.78),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white24),
+              boxShadow: const [
+                BoxShadow(
+                  blurRadius: 18,
+                  spreadRadius: 1,
+                  offset: Offset(0, 6),
+                  color: Colors.black45,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => setState(() => _quickActionsExpanded = !_quickActionsExpanded),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedRotation(
+                          turns: _quickActionsExpanded ? 0.125 : 0,
+                          duration: const Duration(milliseconds: 180),
+                          child: const Icon(Icons.more_vert, color: Colors.white, size: 26),
+                        ),
+                        if (_quickActionsExpanded) ...[
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Actions',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: _quickActionsExpanded
+                      ? ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 230),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: actions
+                                  .map((action) => _buildQuickActionItem(action))
+                                  .toList(),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionItem(_QuickAction action) {
+    return SizedBox(
+      width: 214,
       child: Material(
         color: Colors.transparent,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              transitionBuilder: (child, animation) {
-                return FadeTransition(
-                  opacity: animation,
-                  child: SizeTransition(
-                    sizeFactor: animation,
-                    axisAlignment: -1,
-                    child: child,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: action.onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                );
-              },
-              child: _quickActionsExpanded
-                  ? _buildQuickActionsPanel()
-                  : const SizedBox.shrink(),
-            ),
-            const SizedBox(height: 10),
-            FloatingActionButton(
-              heroTag: 'quick_actions_fab',
-              mini: false,
-              elevation: 6,
-              backgroundColor: AppTheme.primaryColor,
-              foregroundColor: Colors.white,
-              tooltip: _quickActionsExpanded
-                  ? 'Fermer les actions rapides'
-                  : 'Actions rapides',
-              onPressed: () {
-                setState(() => _quickActionsExpanded = !_quickActionsExpanded);
-              },
-              child: AnimatedRotation(
-                duration: const Duration(milliseconds: 220),
-                turns: _quickActionsExpanded ? 0.125 : 0,
-                child: const Icon(Icons.add, size: 30),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsPanel() {
-    return Container(
-      width: 235,
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.86),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white24),
-        boxShadow: const [
-          BoxShadow(
-            blurRadius: 18,
-            spreadRadius: 1,
-            offset: Offset(0, 8),
-            color: Colors.black45,
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildQuickActionTile(
-            icon: Icons.videocam,
-            label: 'Caméra',
-            onPressed: _activateCameraFromQuickMenu,
-          ),
-          _buildQuickActionTile(
-            icon: Icons.manage_search,
-            label: 'Rechercher un produit',
-            onPressed: _openSearchFromQuickMenu,
-          ),
-          _buildQuickActionTile(
-            icon: Icons.assignment_return,
-            label: 'Gestion des retours',
-            onPressed: _openReturnsFromQuickMenu,
-          ),
-          _buildQuickActionTile(
-            icon: Icons.history,
-            label: 'Historique',
-            onPressed: _openHistoryFromQuickMenu,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickActionTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return Semantics(
-      button: true,
-      label: label,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.10),
-                  shape: BoxShape.circle,
+                  child: Icon(action.icon, color: Colors.white, size: 20),
                 ),
-                child: Icon(icon, color: Colors.white, size: 21),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    action.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
-    );
-  }
-
-  void _closeQuickActions() {
-    if (_quickActionsExpanded && mounted) {
-      setState(() => _quickActionsExpanded = false);
-    }
-  }
-
-  void _activateCameraFromQuickMenu() {
-    _closeQuickActions();
-    setState(() {
-      _searchMode = false;
-      _douchetteMode = false;
-      _isCameraOn = true;
-    });
-    _douchetteFocusNode.unfocus();
-    _scannerController.start();
-  }
-
-  void _openSearchFromQuickMenu() {
-    _closeQuickActions();
-    setState(() => _searchMode = true);
-    _scannerController.stop();
-    _douchetteFocusNode.unfocus();
-  }
-
-  Future<void> _openReturnsFromQuickMenu() async {
-    _closeQuickActions();
-    _douchetteFocusNode.unfocus();
-    _scannerController.stop();
-    await context.push('/returns');
-    if (!mounted) return;
-    if (_douchetteMode && !_searchMode) {
-      _requestDouchetteFocus();
-    } else if (_isCameraOn && !_searchMode) {
-      await _restartScanner();
-    }
-  }
-
-  Future<void> _openHistoryFromQuickMenu() async {
-    _closeQuickActions();
-    _douchetteFocusNode.unfocus();
-    _scannerController.stop();
-    await context.push('/history');
-    if (!mounted) return;
-    if (_douchetteMode && !_searchMode) {
-      _requestDouchetteFocus();
-    } else if (_isCameraOn && !_searchMode) {
-      await _restartScanner();
-    }
-  }
-
-  Widget _buildOverlayButton(
-      {required IconData icon, required VoidCallback onPressed, Color? color}) {
-    return Container(
-      width: 44,
-      height: 44,
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: color ?? Colors.black45,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white24),
-      ),
-      child: IconButton(
-        icon: Icon(icon, color: Colors.white),
-        onPressed: onPressed,
       ),
     );
   }
@@ -1035,4 +1043,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   // A floating Details/Checkout Button at the very bottom
   // Added a Stack wrapper below to overlay this button
+}
+
+class _QuickAction {
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final FutureOr<void> Function() onTap;
 }
