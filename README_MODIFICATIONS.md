@@ -39,3 +39,7 @@ flutter build apk --release
 ```
 
 Le SDK Flutter n'est pas installé dans l'environnement qui a préparé cette archive ; une validation finale doit donc être faite dans ton environnement Flutter/Codemagic.
+
+## Correctif build Codemagic
+- Le projet Android utilise désormais les fichiers Gradle Groovy attendus par le script de build Codemagic : `android/build.gradle`, `android/settings.gradle` et `android/app/build.gradle`.
+- Les anciens fichiers Kotlin DSL `.gradle.kts` ont été retirés pour éviter un conflit de configuration.
