@@ -22,4 +22,14 @@ plugins {
     id 'org.jetbrains.kotlin.android' version '2.2.20' apply false
 }
 
+
+// Keep Flutter/Gradle outputs in the standard Flutter project build directory.
+// Codemagic and Flutter expect artifacts under <project>/build/.
+def newBuildDir = rootProject.layout.buildDirectory.dir('../build').get()
+rootProject.layout.buildDirectory.set(newBuildDir)
+
+subprojects {
+    project.layout.buildDirectory.set(rootProject.layout.buildDirectory.dir(project.name))
+}
+
 include ':app'

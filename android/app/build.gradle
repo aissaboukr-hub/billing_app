@@ -37,21 +37,3 @@ flutter {
     source '../..'
 }
 
-
-// Codemagic compatibility: ensure the release APK is also available at
-// the standard Flutter artifact location expected by the build step.
-afterEvaluate {
-    tasks.named('assembleRelease').configure {
-        doLast {
-            def apk = file("${project.buildDir}/outputs/apk/release/app-release.apk")
-            def flutterOutput = file("${rootProject.projectDir.parentFile}/build/app/outputs/flutter-apk")
-            if (apk.exists()) {
-                flutterOutput.mkdirs()
-                copy {
-                    from apk
-                    into flutterOutput
-                }
-            }
-        }
-    }
-}
