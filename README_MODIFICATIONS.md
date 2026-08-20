@@ -40,6 +40,16 @@ flutter build apk --release
 
 Le SDK Flutter n'est pas installé dans l'environnement qui a préparé cette archive ; une validation finale doit donc être faite dans ton environnement Flutter/Codemagic.
 
-## Correctif build Codemagic
-- Le projet Android utilise désormais les fichiers Gradle Groovy attendus par le script de build Codemagic : `android/build.gradle`, `android/settings.gradle` et `android/app/build.gradle`.
-- Les anciens fichiers Kotlin DSL `.gradle.kts` ont été retirés pour éviter un conflit de configuration.
+
+## 6. Authentification par nom d'utilisateur et rôles
+- Connexion avec le **nom d'utilisateur** à la place de l'adresse e-mail.
+- Premier compte créé : **Administrateur**.
+- Comptes suivants : **Utilisateur** par défaut.
+- Administrateur : accès complet à l'application et gestion des utilisateurs, rôles et mots de passe.
+- Utilisateur : accès aux fonctions de caisse, scanner, retours et historique, mais **sans accès** à :
+  - Gestion des produits.
+  - Informations du commerce.
+  - Import / Export.
+  - Configuration URL Google Sheets.
+- Les routes protégées sont également contrôlées côté navigation (`GoRouter`) : un utilisateur ne peut pas contourner la restriction en ouvrant directement une URL.
+- Migration prévue pour les anciens comptes : leur ancien e-mail est converti en nom d'utilisateur avec la partie avant `@` lors de la première connexion.

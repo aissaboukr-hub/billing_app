@@ -67,17 +67,19 @@ class _AuthPageState extends State<AuthPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Icon(Icons.receipt_long, size: 64,
-                            color: AppTheme.primaryColor),
+                        Icon(Icons.receipt_long,
+                            size: 64, color: AppTheme.primaryColor),
                         const SizedBox(height: 12),
-                        Text(_register ? 'Créer un compte' : 'Connexion',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                fontSize: 26, fontWeight: FontWeight.bold)),
+                        Text(
+                          _register ? 'Créer un compte' : 'Connexion',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 26, fontWeight: FontWeight.bold),
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           _register
-                              ? 'Créez votre accès sécurisé à l’application.'
+                              ? "Créez votre accès sécurisé à l’application."
                               : 'Connectez-vous avec votre nom d’utilisateur.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey[600]),
@@ -87,12 +89,19 @@ class _AuthPageState extends State<AuthPage> {
                           controller: _username,
                           textInputAction: TextInputAction.next,
                           decoration: const InputDecoration(
-                            labelText: 'Nom d’utilisateur',
+                            labelText: "Nom d'utilisateur",
                             prefixIcon: Icon(Icons.person_outline),
                           ),
-                          validator: (v) => v == null || v.trim().length < 3
-                              ? 'Minimum 3 caractères'
-                              : null,
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+                            if (value.length < 3) {
+                              return "Minimum 3 caractères";
+                            }
+                            if (!RegExp(r'^[a-zA-Z0-9._-]+$').hasMatch(value)) {
+                              return "Lettres, chiffres, '.', '_' et '-' uniquement";
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -132,15 +141,13 @@ class _AuthPageState extends State<AuthPage> {
                           onPressed: _loading ? null : _submit,
                           icon: _loading
                               ? const SizedBox(
-                                  width: 18, height: 18,
+                                  width: 18,
+                                  height: 18,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2))
-                              : Icon(_register
-                                  ? Icons.person_add
-                                  : Icons.login),
-                          label: Text(_register
-                              ? 'Créer mon compte'
-                              : 'Se connecter'),
+                              : Icon(_register ? Icons.person_add : Icons.login),
+                          label: Text(
+                              _register ? 'Créer mon compte' : 'Se connecter'),
                         ),
                         const SizedBox(height: 12),
                         TextButton(
@@ -151,6 +158,16 @@ class _AuthPageState extends State<AuthPage> {
                               ? 'J’ai déjà un compte'
                               : 'Créer un nouveau compte'),
                         ),
+                        if (_register)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Le premier compte créé est administrateur. Les comptes suivants sont utilisateurs.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey[600]),
+                            ),
+                          ),
                       ],
                     ),
                   ),
