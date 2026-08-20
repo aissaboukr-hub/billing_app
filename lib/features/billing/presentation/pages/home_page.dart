@@ -30,6 +30,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isCameraOn = true;
   bool _isFlashOn = false;
   bool _searchMode = false;
+  bool _quickActionsExpanded = false;
   // Mode de lecture par défaut : douchette (USB/Bluetooth type clavier).
   // La caméra reste disponible via le bouton de bascule.
   bool _douchetteMode = true;
@@ -348,75 +349,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           if (!_isCameraOn) _buildCameraOffState(),
 
-          // Overlay Actions (Top Right)
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            right: 16,
-            child: Column(
-              children: [
-                _buildOverlayButton(
-                  icon: Icons.manage_search,
-                  onPressed: () {
-                    setState(() => _searchMode = true);
-                    _scannerController.stop();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.assignment_return,
-                  onPressed: () async {
-                    await _scannerController.stop();
-                    await context.push('/returns');
-                    await _restartScanner();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.history,
-                  onPressed: () async {
-                    _scannerController.stop();
-                    await context.push('/history');
-                    await _restartScanner();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.settings,
-                  onPressed: () async {
-                    _scannerController.stop();
-                    await context.push('/settings');
-                    await _restartScanner();
-                  },
-                ),
-                const SizedBox(height: 16),
-                if (_isCameraOn)
-                  _buildOverlayButton(
-                    icon:
-                        _isFlashOn ? Icons.flashlight_off : Icons.flashlight_on,
-                    onPressed: () {
-                      setState(() => _isFlashOn = !_isFlashOn);
-                      _scannerController.toggleTorch();
-                    },
-                  ),
-                if (_isCameraOn) const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
-                  // color:  Colors.white24 ,
-                  onPressed: () {
-                    setState(() {
-                      _douchetteMode = false;
-                      _isCameraOn = !_isCameraOn;
-                    });
-                    if (_isCameraOn) {
-                      _scannerController.start();
-                    } else {
-                      _scannerController.stop();
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
+          // Menu d'actions rapides : un seul FAB pour garder l'écran propre.
+          _buildQuickActionsMenu(),
 
           // Central Overlay Bounding Box
           if (_isCameraOn)
@@ -491,57 +425,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ],
             ),
           ),
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Column(
-              children: [
-                _buildOverlayButton(
-                  icon: Icons.videocam,
-                  onPressed: () async {
-                    setState(() {
-                      _douchetteMode = false;
-                      _isCameraOn = true;
-                    });
-                    await _scannerController.start();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.manage_search,
-                  onPressed: () {
-                    setState(() => _searchMode = true);
-                    _douchetteFocusNode.unfocus();
-                    _requestDouchetteFocus();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.assignment_return,
-                  onPressed: () async {
-                    await context.push('/returns');
-                    _requestDouchetteFocus();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.history,
-                  onPressed: () async {
-                    await context.push('/history');
-                    _requestDouchetteFocus();
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildOverlayButton(
-                  icon: Icons.settings,
-                  onPressed: () async {
-                    await context.push('/settings');
-                    _requestDouchetteFocus();
-                  },
-                ),
-              ],
-            ),
-          ),
+          // Le même menu est utilisé en mode douchette pour garder une UX cohérente.
+          _buildQuickActionsMenu(),
         ],
       ),
     );
@@ -681,6 +566,196 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  Widget _buildQuickActionsMenu() {
+    final top = MediaQuery.of(context).padding.top + 16;
+
+    return Positioned(
+      top: top,
+      right: 16,
+      child: Material(
+        color: Colors.transparent,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(
+                  opacity: animation,
+                  child: SizeTransition(
+                    sizeFactor: animation,
+                    axisAlignment: -1,
+                    child: child,
+                  ),
+                );
+              },
+              child: _quickActionsExpanded
+                  ? _buildQuickActionsPanel()
+                  : const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton(
+              heroTag: 'quick_actions_fab',
+              mini: false,
+              elevation: 6,
+              backgroundColor: AppTheme.primaryColor,
+              foregroundColor: Colors.white,
+              tooltip: _quickActionsExpanded
+                  ? 'Fermer les actions rapides'
+                  : 'Actions rapides',
+              onPressed: () {
+                setState(() => _quickActionsExpanded = !_quickActionsExpanded);
+              },
+              child: AnimatedRotation(
+                duration: const Duration(milliseconds: 220),
+                turns: _quickActionsExpanded ? 0.125 : 0,
+                child: const Icon(Icons.add, size: 30),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsPanel() {
+    return Container(
+      width: 235,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.86),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white24),
+        boxShadow: const [
+          BoxShadow(
+            blurRadius: 18,
+            spreadRadius: 1,
+            offset: Offset(0, 8),
+            color: Colors.black45,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildQuickActionTile(
+            icon: Icons.videocam,
+            label: 'Caméra',
+            onPressed: _activateCameraFromQuickMenu,
+          ),
+          _buildQuickActionTile(
+            icon: Icons.manage_search,
+            label: 'Rechercher un produit',
+            onPressed: _openSearchFromQuickMenu,
+          ),
+          _buildQuickActionTile(
+            icon: Icons.assignment_return,
+            label: 'Gestion des retours',
+            onPressed: _openReturnsFromQuickMenu,
+          ),
+          _buildQuickActionTile(
+            icon: Icons.history,
+            label: 'Historique',
+            onPressed: _openHistoryFromQuickMenu,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onPressed,
+  }) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.white54, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _closeQuickActions() {
+    if (_quickActionsExpanded && mounted) {
+      setState(() => _quickActionsExpanded = false);
+    }
+  }
+
+  void _activateCameraFromQuickMenu() {
+    _closeQuickActions();
+    setState(() {
+      _searchMode = false;
+      _douchetteMode = false;
+      _isCameraOn = true;
+    });
+    _douchetteFocusNode.unfocus();
+    _scannerController.start();
+  }
+
+  void _openSearchFromQuickMenu() {
+    _closeQuickActions();
+    setState(() => _searchMode = true);
+    _scannerController.stop();
+    _douchetteFocusNode.unfocus();
+  }
+
+  Future<void> _openReturnsFromQuickMenu() async {
+    _closeQuickActions();
+    _douchetteFocusNode.unfocus();
+    _scannerController.stop();
+    await context.push('/returns');
+    if (!mounted) return;
+    if (_douchetteMode && !_searchMode) {
+      _requestDouchetteFocus();
+    } else if (_isCameraOn && !_searchMode) {
+      await _restartScanner();
+    }
+  }
+
+  Future<void> _openHistoryFromQuickMenu() async {
+    _closeQuickActions();
+    _douchetteFocusNode.unfocus();
+    _scannerController.stop();
+    await context.push('/history');
+    if (!mounted) return;
+    if (_douchetteMode && !_searchMode) {
+      _requestDouchetteFocus();
+    } else if (_isCameraOn && !_searchMode) {
+      await _restartScanner();
+    }
   }
 
   Widget _buildOverlayButton(
