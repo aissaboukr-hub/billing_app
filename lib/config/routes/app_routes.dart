@@ -16,66 +16,72 @@ import '../../features/product/domain/entities/product.dart';
 
 GoRouter buildRouter() {
   final auth = AuthService();
+  const adminOnly = <String>{
+    '/products',
+    '/shop',
+    '/import-export',
+  };
+
+  bool isAdminRoute(String location) {
+    return adminOnly.any((path) =>
+        location == path || location.startsWith('$path/'));
+  }
+
   return GoRouter(
-  initialLocation: auth.isLoggedIn ? '/' : '/login',
-  redirect: (context, state) {
-    final loggedIn = auth.isLoggedIn;
-    final isLogin = state.matchedLocation == '/login';
-    if (!loggedIn && !isLogin) return '/login';
-    if (loggedIn && isLogin) return '/';
-    return null;
-  },
-  routes: [
-    GoRoute(path: '/login', builder: (context, state) => const AuthPage()),
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomePage(),
-      routes: [
-        GoRoute(
-          path: 'scanner',
-          builder: (context, state) => const ScannerPage(),
-        ),
-        GoRoute(
-          path: 'checkout',
-          builder: (context, state) => const CheckoutPage(),
-        ),
-        GoRoute(
-          path: 'returns',
-          builder: (context, state) => const ReturnPage(),
-        ),
-      ],
-    ),
-    GoRoute(
-      path: '/settings',
-      builder: (context, state) => const SettingsPage(),
-    ),
-    GoRoute(path: '/import-export', builder: (context, state) => const ImportExportPage()),
-    GoRoute(path: '/history', builder: (context, state) => const HistoryPage()),
-    GoRoute(
-      path: '/products',
-      builder: (context, state) => const ProductListPage(),
-      routes: [
-        GoRoute(
-          path: 'add',
-          builder: (context, state) => const AddProductPage(),
-        ),
-        GoRoute(
-          path: 'edit/:id',
-          builder: (context, state) {
-            final product = state.extra as Product?;
-            if (product == null) {
-              // If we land here without extra (e.g. deep link), go back to products for now.
-              return const ProductListPage();
-            }
-            return EditProductPage(product: product);
-          },
-        ),
-      ],
-    ),
-    GoRoute(
-      path: '/shop',
-      builder: (context, state) => const ShopDetailsPage(),
-    ),
-  ],
+    initialLocation: auth.isLoggedIn ? '/' : '/login',
+    redirect: (context, state) {
+      final loggedIn = auth.isLoggedIn;
+      final location = state.matchedLocation;
+      final isLogin = location == '/login';
+
+      if (!loggedIn && !isLogin) return '/login';
+      if (loggedIn && isLogin) return '/';
+
+      if (loggedIn && !auth.isAdmin && isAdminRoute(location)) {
+        return '/';
+      }
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/login', builder: (context, state) => const AuthPage()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomePage(),
+        routes: [
+          GoRoute(path: 'scanner',
+              builder: (context, state) => const ScannerPage()),
+          GoRoute(path: 'checkout',
+              builder: (context, state) => const CheckoutPage()),
+          GoRoute(path: 'returns',
+              builder: (context, state) => const ReturnPage()),
+        ],
+      ),
+      GoRoute(
+        path: '/settings',
+        builder: (context, state) => const SettingsPage(),
+      ),
+      GoRoute(path: '/import-export',
+          builder: (context, state) => const ImportExportPage()),
+      GoRoute(path: '/history',
+          builder: (context, state) => const HistoryPage()),
+      GoRoute(
+        path: '/products',
+        builder: (context, state) => const ProductListPage(),
+        routes: [
+          GoRoute(path: 'add',
+              builder: (context, state) => const AddProductPage()),
+          GoRoute(
+            path: 'edit/:id',
+            builder: (context, state) {
+              final product = state.extra as Product?;
+              if (product == null) return const ProductListPage();
+              return EditProductPage(product: product);
+            },
+          ),
+        ],
+      ),
+      GoRoute(path: '/shop',
+          builder: (context, state) => const ShopDetailsPage()),
+    ],
   );
 }

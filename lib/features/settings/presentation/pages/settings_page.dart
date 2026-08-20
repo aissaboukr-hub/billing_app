@@ -19,6 +19,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final AuthService _auth = AuthService();
+
   @override
   void initState() {
     super.initState();
@@ -99,27 +101,28 @@ class _SettingsPageState extends State<SettingsPage> {
 
             const SizedBox(height: 24),
 
-            // Management Section
-            _buildSectionHeader('Gestion'),
-            _buildListGroup(
-              children: [
-                _buildListItem(
-                  icon: Icons.qr_code_scanner,
-                  title: 'Produits',
-                  subtitle: 'Gérer le stock et les codes-barres',
-                  onTap: () => context.push('/products'),
-                ),
-                _buildDivider(),
-                _buildListItem(
-                  icon: Icons.storefront,
-                  title: 'Informations du commerce',
-                  subtitle: 'Modifier les informations et l’adresse',
-                  onTap: () => context.push('/shop'),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 24),
+            // Management Section — réservée aux administrateurs.
+            if (_auth.isAdmin) ...[
+              _buildSectionHeader('Gestion'),
+              _buildListGroup(
+                children: [
+                  _buildListItem(
+                    icon: Icons.qr_code_scanner,
+                    title: 'Produits',
+                    subtitle: 'Gérer le stock et les codes-barres',
+                    onTap: () => context.push('/products'),
+                  ),
+                  _buildDivider(),
+                  _buildListItem(
+                    icon: Icons.storefront,
+                    title: 'Informations du commerce',
+                    subtitle: 'Modifier les informations et l’adresse',
+                    onTap: () => context.push('/shop'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Hardware Section
             _buildSectionHeader('Matériel'),
@@ -215,13 +218,37 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
 
-            const SizedBox(height: 24),
-            _buildSectionHeader('Données'),
-            _buildListGroup(children: [
-              _buildListItem(icon: Icons.import_export, title: 'Import / Export', subtitle: 'Produits, factures et Google Sheets', onTap: () => context.push('/import-export')),
-              _buildDivider(),
-              _buildListItem(icon: Icons.cloud_upload, title: 'URL Google Sheets', subtitle: 'Configurer l’URL Google Apps Script pour les ventes', onTap: _configureGoogleSheets),
-            ]),
+            if (_auth.isAdmin) ...[
+              const SizedBox(height: 24),
+              _buildSectionHeader('Données'),
+              _buildListGroup(children: [
+                _buildListItem(
+                  icon: Icons.import_export,
+                  title: 'Import / Export',
+                  subtitle: 'Produits, factures et Google Sheets',
+                  onTap: () => context.push('/import-export'),
+                ),
+                _buildDivider(),
+                _buildListItem(
+                  icon: Icons.cloud_upload,
+                  title: 'URL Google Sheets',
+                  subtitle: 'Configurer l’URL Google Apps Script pour les ventes',
+                  onTap: _configureGoogleSheets,
+                ),
+              ]),
+            ],
+            if (_auth.isAdmin) ...[
+              const SizedBox(height: 24),
+              _buildSectionHeader('Administration'),
+              _buildListGroup(children: [
+                _buildListItem(
+                  icon: Icons.manage_accounts,
+                  title: 'Utilisateurs et mots de passe',
+                  subtitle: 'Gérer les rôles et les mots de passe',
+                  onTap: _manageUsers,
+                ),
+              ]),
+            ],
             const SizedBox(height: 16),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: OutlinedButton.icon(onPressed: () async { await AuthService().logout(); if (context.mounted) context.go('/login'); }, icon: const Icon(Icons.logout), label: const Text('Se déconnecter'))),
             const SizedBox(height: 48),
@@ -231,6 +258,125 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+
+  Future<void> _manageUsers() async {
+    if (!_auth.isAdmin) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final users = _auth.users;
+          return AlertDialog(
+            title: const Text('Utilisateurs et mots de passe'),
+            content: SizedBox(
+              width: 520,
+              child: users.isEmpty
+                  ? const Text('Aucun utilisateur.')
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: users.length,
+                      separatorBuilder: (_, __) => const Divider(),
+                      itemBuilder: (context, index) {
+                        final user = users[index];
+                        final username = (user['username'] ?? '').toString();
+                        final role = (user['role'] ?? 'user').toString();
+                        final isSelf = username.toLowerCase() ==
+                            (_auth.currentUsername ?? '').toLowerCase();
+
+                        return ListTile(
+                          leading: CircleAvatar(
+                            child: Text(username.isNotEmpty
+                                ? username[0].toUpperCase()
+                                : '?'),
+                          ),
+                          title: Text(username),
+                          subtitle: Text(
+                            role == 'admin' ? 'Administrateur' : 'Utilisateur',
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (action) async {
+                              try {
+                                if (action == 'password') {
+                                  final controller = TextEditingController();
+                                  final value = await showDialog<String>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: Text('Mot de passe — $username'),
+                                      content: TextField(
+                                        controller: controller,
+                                        obscureText: true,
+                                        autofocus: true,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Nouveau mot de passe',
+                                        ),
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.pop(context),
+                                          child: const Text('Annuler'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () => Navigator.pop(
+                                              context, controller.text),
+                                          child: const Text('Enregistrer'),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                  controller.dispose();
+                                  if (value != null) {
+                                    await _auth.changePassword(username, value);
+                                  }
+                                } else if (action == 'role') {
+                                  await _auth.setRole(
+                                      username,
+                                      role == 'admin' ? 'user' : 'admin');
+                                }
+                                setDialogState(() {});
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(e
+                                          .toString()
+                                          .replaceFirst('Exception: ', '')),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'password',
+                                child: Text('Modifier le mot de passe'),
+                              ),
+                              if (!isSelf)
+                                PopupMenuItem(
+                                  value: 'role',
+                                  child: Text(role == 'admin'
+                                      ? 'Passer en Utilisateur'
+                                      : 'Passer en Administrateur'),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fermer'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
   Future<void> _configureGoogleSheets() async {
     final controller = TextEditingController(text: HiveDatabase.settingsBox.get('google_sheets_export_url', defaultValue: '') as String);
