@@ -213,7 +213,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           _unbindDevice(username);
                         }
                       },
-                      itemBuilder: (_) => const [
+                      itemBuilder: (_) => [
                         PopupMenuItem(
                           value: 'password',
                           child: ListTile(
