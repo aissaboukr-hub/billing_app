@@ -202,7 +202,9 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           : Icons.person),
                     ),
                     title: Text(username),
-                    subtitle: Text('${role == 'admin' ? 'Administrateur' : 'Utilisateur'} • ${user['deviceBound'] == true ? 'Appareil associé' : 'Appareil non associé'}'),
+                    subtitle: Text(role == 'admin'
+                        ? 'Administrateur • Aucun appareil requis'
+                        : 'Utilisateur • ${user['deviceBound'] == true ? 'Appareil associé' : 'Appareil non associé'}'),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'password') {
@@ -228,7 +230,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             title: Text('Modifier le rôle'),
                           ),
                         ),
-                        if (user['deviceBound'] == true)
+                        if (role != 'admin' && user['deviceBound'] == true)
                           const PopupMenuItem(
                             value: 'unbind',
                             child: ListTile(

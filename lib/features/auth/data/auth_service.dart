@@ -88,7 +88,8 @@ class AuthService {
       final admin = users[adminIndex];
       admin['username'] = defaultAdminUsername;
       admin['role'] = UserRole.admin.name;
-      admin['deviceId'] ??= null;
+      // L'administrateur ne doit jamais être associé à un appareil.
+      admin['deviceId'] = null;
       admin['mustChangePassword'] ??= false;
       users[adminIndex] = admin;
       await HiveDatabase.settingsBox.put(_usersKey, users);
@@ -193,28 +194,44 @@ class AuthService {
       throw Exception("Nom d'utilisateur ou mot de passe incorrect.");
     }
 
-    final deviceId = await _getDeviceId();
-    final boundDevice = user['deviceId'] as String?;
+    // L'administrateur n'est jamais associé à un appareil.
+    // Cela permet à l'administrateur de se connecter sur n'importe quel appareil
+    // sans consommer l'association appareil réservée aux utilisateurs.
+    final isAdminAccount = user['role'] == UserRole.admin.name;
+    if (!isAdminAccount) {
+      final deviceId = await _getDeviceId();
+      final boundDevice = user['deviceId'] as String?;
 
-    // Un compte déjà lié à un autre appareil ne peut pas être utilisé ici.
-    if (boundDevice != null && boundDevice.isNotEmpty && boundDevice != deviceId) {
-      throw Exception('Ce compte est déjà associé à un autre appareil.');
-    }
+      // Un compte déjà lié à un autre appareil ne peut pas être utilisé ici.
+      if (boundDevice != null && boundDevice.isNotEmpty && boundDevice != deviceId) {
+        throw Exception('Ce compte est déjà associé à un autre appareil.');
+      }
 
-    // Un appareil ne peut appartenir qu'à un seul compte.
-    final otherUser = users.firstWhere(
-      (u) => u['deviceId'] == deviceId && u['username'] != user!['username'],
-      orElse: () => <String, dynamic>{},
-    );
-    if (otherUser.isNotEmpty) {
-      throw Exception(
-          "Cet appareil est déjà associé à l'utilisateur '${otherUser['username']}'.");
-    }
+      // Un appareil ne peut appartenir qu'à un seul compte utilisateur.
+      final otherUser = users.firstWhere(
+        (u) => u['role'] != UserRole.admin.name &&
+            u['deviceId'] == deviceId &&
+            u['username'] != user!['username'],
+        orElse: () => <String, dynamic>{},
+      );
+      if (otherUser.isNotEmpty) {
+        throw Exception(
+            "Cet appareil est déjà associé à l'utilisateur '${otherUser['username']}'.");
+      }
 
-    final index = users.indexWhere((u) => u['username'] == user!['username']);
-    if (index >= 0 && users[index]['deviceId'] == null) {
-      users[index]['deviceId'] = deviceId;
-      await HiveDatabase.settingsBox.put(_usersKey, users);
+      final index = users.indexWhere((u) => u['username'] == user!['username']);
+      if (index >= 0 && users[index]['deviceId'] == null) {
+        users[index]['deviceId'] = deviceId;
+        await HiveDatabase.settingsBox.put(_usersKey, users);
+      }
+    } else {
+      // Nettoyage des anciennes données : même si l'admin avait été lié avant
+      // cette règle, son association est supprimée automatiquement.
+      final index = users.indexWhere((u) => u['username'] == user!['username']);
+      if (index >= 0 && users[index]['deviceId'] != null) {
+        users[index]['deviceId'] = null;
+        await HiveDatabase.settingsBox.put(_usersKey, users);
+      }
     }
 
     await HiveDatabase.settingsBox.put(_loggedInKey, true);
@@ -281,6 +298,11 @@ class AuthService {
 
     if (normalized == defaultAdminUsername && role != UserRole.admin) {
       throw Exception("Le compte administrateur par défaut ne peut pas perdre son rôle.");
+    }
+
+    // Un compte administrateur ne doit jamais être associé à un appareil.
+    if (role == UserRole.admin) {
+      users[index]['deviceId'] = null;
     }
 
     if (users[index]['role'] == 'admin' && role == UserRole.user) {
