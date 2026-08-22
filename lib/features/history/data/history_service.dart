@@ -26,7 +26,7 @@ class HistoryService {
       'currency': 'DZD',
       'items': items.map<Map<String, dynamic>>((CartItem item) => <String, dynamic>{
         'produit': item.product.name,
-        'codeBarres': item.product.barcode,
+        'codeBarres': item.product.barcodeDisplay,
         'quantite': item.quantity,
         'prixUnitaire': item.product.price,
         'total': item.total,
@@ -50,7 +50,7 @@ class HistoryService {
       'items': [
         {
           'produit': product.name,
-          'codeBarres': product.barcode,
+          'codeBarres': product.barcodeDisplay,
           'quantite': quantity,
           'prixUnitaire': product.price,
           'total': -total,

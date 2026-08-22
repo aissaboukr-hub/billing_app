@@ -13,7 +13,7 @@ class _ImportExportPageState extends State<ImportExportPage> {
   Future<void> _run(Future<int> Function() action) async { setState(() => _loading = true); try { final n = await action(); if (mounted) { context.read<ProductBloc>().add(LoadProducts()); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$n produit(s) importé(s).'), backgroundColor: Colors.green)); } } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red)); } finally { if (mounted) setState(() => _loading = false); } }
   @override Widget build(BuildContext context) => Scaffold(appBar: AppBar(title: const Text('Importation / Exportation')), body: ListView(padding: const EdgeInsets.all(20), children: [
     const Text('Importer les produits', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 12),
-    Card(child: ListTile(leading: const Icon(Icons.table_view), title: const Text('Importer depuis Excel'), subtitle: const Text('Formats .xlsx et .xls'), onTap: _loading ? null : () => _run(DataTransferService.importProductsFromExcel))),
+    Card(child: ListTile(leading: const Icon(Icons.table_view), title: const Text('Importer depuis Excel'), subtitle: const Text('Formats .xlsx et .xls • 1 ou 2 codes-barres par produit'), onTap: _loading ? null : () => _run(DataTransferService.importProductsFromExcel))),
     const SizedBox(height: 12),
     TextField(controller: _url, decoration: const InputDecoration(labelText: 'Lien Google Sheets', hintText: 'https://docs.google.com/spreadsheets/d/...', prefixIcon: Icon(Icons.link))),
     const SizedBox(height: 8),

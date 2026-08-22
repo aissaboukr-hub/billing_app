@@ -23,7 +23,9 @@ class ProductRepositoryImpl implements ProductRepository {
       final box = HiveDatabase.productBox;
       final normalizedBarcode = barcode.trim().toUpperCase();
       final product = box.values.firstWhere(
-        (element) => element.barcode.trim().toUpperCase() == normalizedBarcode,
+        (element) => element.barcodes.any(
+          (code) => code.trim().toUpperCase() == normalizedBarcode,
+        ),
         orElse: () => throw Exception('Produit introuvable'),
       );
       return Right(product);

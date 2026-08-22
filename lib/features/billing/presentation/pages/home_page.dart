@@ -496,7 +496,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.inventory_2)),
                 title: Text(product.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text(product.barcode),
+                subtitle: Text(product.barcodeDisplay),
                 trailing: Text(AppFormatters.price(product.price), style: const TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   context.read<BillingBloc>().add(AddProductToCartEvent(product));
@@ -513,12 +513,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   bool _matchesWildcardSearch(Product product, String query) {
     final name = product.name.toLowerCase();
-    final barcode = product.barcode.toLowerCase();
+    final barcodes = product.barcodes.map((code) => code.toLowerCase()).toList();
     final terms = query.split(RegExp(r'\s+')).where((term) => term.isNotEmpty);
     for (final term in terms) {
       final pattern = RegExp.escape(term).replaceAll('%', '.*');
       final regex = RegExp(pattern, caseSensitive: false);
-      if (!regex.hasMatch(name) && !regex.hasMatch(barcode)) return false;
+      final barcodeMatches = barcodes.any(regex.hasMatch);
+      if (!regex.hasMatch(name) && !barcodeMatches) return false;
     }
     return true;
   }

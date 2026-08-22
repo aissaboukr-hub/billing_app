@@ -74,7 +74,7 @@ class _ReturnPageState extends State<ReturnPage> {
                     final barcode = value.trim().toLowerCase();
                     if (barcode.isEmpty) return;
                     final matches = state.products
-                        .where((p) => p.barcode.trim().toLowerCase() == barcode)
+                        .where((p) => p.barcodes.any((code) => code.trim().toLowerCase() == barcode))
                         .toList();
                     if (matches.length == 1) {
                       setState(() => _selectedProduct = matches.first);
@@ -92,7 +92,7 @@ class _ReturnPageState extends State<ReturnPage> {
                             return ListTile(
                               leading: const CircleAvatar(child: Icon(Icons.assignment_return)),
                               title: Text(product.name),
-                              subtitle: Text(product.barcode),
+                              subtitle: Text(product.barcodeDisplay),
                               trailing: Text(AppFormatters.price(product.price)),
                               onTap: () => setState(() => _selectedProduct = product),
                             );
@@ -110,12 +110,12 @@ class _ReturnPageState extends State<ReturnPage> {
 
   bool _matchesWildcardSearch(Product product, String query) {
     final name = product.name.toLowerCase();
-    final barcode = product.barcode.toLowerCase();
+    final barcodes = product.barcodes.map((code) => code.toLowerCase()).toList();
     final terms = query.split(RegExp(r'\s+')).where((term) => term.isNotEmpty);
     for (final term in terms) {
       final pattern = RegExp.escape(term).replaceAll('%', '.*');
       final regex = RegExp(pattern, caseSensitive: false);
-      if (!regex.hasMatch(name) && !regex.hasMatch(barcode)) return false;
+      if (!regex.hasMatch(name) && !barcodes.any(regex.hasMatch)) return false;
     }
     return true;
   }
@@ -130,7 +130,7 @@ class _ReturnPageState extends State<ReturnPage> {
               const Text('Article à retourner', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(product.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Text(product.barcode),
+              Text(product.barcodeDisplay),
               const SizedBox(height: 8),
               Text('Prix unitaire : ${AppFormatters.price(product.price)}'),
             ]),

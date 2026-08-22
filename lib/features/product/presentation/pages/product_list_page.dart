@@ -38,7 +38,7 @@ class _ProductListPageState extends State<ProductListPage> {
     final barcode = await context.push<String>('/scanner');
     if (barcode != null && barcode.isNotEmpty) {
       final matchedProduct =
-          products.where((p) => p.barcode == barcode).firstOrNull;
+          products.where((p) => p.barcodes.any((code) => code == barcode)).firstOrNull;
       if (matchedProduct != null) {
         _searchController.text = matchedProduct.name;
       } else {
@@ -152,7 +152,7 @@ class _ProductListPageState extends State<ProductListPage> {
                 final filteredProducts = state.products
                     .where((product) =>
                         product.name.toLowerCase().contains(_searchQuery) ||
-                        product.barcode.toLowerCase().contains(_searchQuery))
+                        product.barcodes.any((code) => code.toLowerCase().contains(_searchQuery)))
                     .toList();
 
                 if (filteredProducts.isEmpty) {
@@ -200,6 +200,15 @@ class _ProductListPageState extends State<ProductListPage> {
                                   style: TextStyle(
                                       fontWeight: FontWeight.w500,
                                       color: Colors.grey[600]),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  product.barcodeDisplay,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[500],
+                                    fontFamily: 'monospace',
+                                  ),
                                 ),
                               ],
                             ),
