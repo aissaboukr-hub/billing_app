@@ -3,6 +3,7 @@ import 'package:billing_app/core/utils/app_formatters.dart';
 import 'package:billing_app/features/data_transfer/data/data_transfer_service.dart';
 import 'package:billing_app/features/history/data/history_service.dart';
 import 'package:billing_app/core/data/hive_database.dart';
+import 'package:billing_app/core/utils/printer_helper.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -58,12 +59,23 @@ class _HistoryPageState extends State<HistoryPage> {
 
   void _clearDateFilter() => setState(() => _dateRange = null);
 
-  Future<void> _exportExcel() async {
+  Future<void> _printHistory() async {
+    final printer = PrinterHelper();
     try {
-      await DataTransferService.exportHistoryToExcel(history: _filteredHistory);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Historique exporté en Excel.')));
+      if (!printer.isConnected) {
+        final savedMac = HiveDatabase.settingsBox.get('printer_mac');
+        if (savedMac == null) {
+          throw Exception('Imprimante non connectée et aucune imprimante enregistrée.');
+        }
+        final connected = await printer.connect(savedMac);
+        if (!connected) throw Exception('Impossible de connecter l’imprimante.');
+      }
+      await printer.printHistory(history: _filteredHistory);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Historique imprimé avec succès.')));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red));
     }
   }
 
@@ -106,7 +118,7 @@ class _HistoryPageState extends State<HistoryPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _exportExcel, icon: const Icon(Icons.table_view), label: const Text('Excel'))),
+            Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _printHistory, icon: const Icon(Icons.print), label: const Text('Imprimer'))),
             const SizedBox(width: 8),
             Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _syncGoogleSheets, icon: const Icon(Icons.cloud_upload), label: const Text('Google Sheets'))),
             const SizedBox(width: 8),

@@ -115,11 +115,32 @@ class DataTransferService {
   static Future<int> _insertProducts(List<List<String>> rows) async {
     int count = 0;
     int rowNumber = 2;
+    final box = HiveDatabase.productBox;
     for (final row in rows) {
       if (row.every((v) => v.isEmpty)) { rowNumber++; continue; }
       try {
         final product = _productFromRow(row);
-        await HiveDatabase.productBox.put(product.id, ProductModel.fromEntity(product));
+        final incomingCodes = product.barcodes
+            .map((v) => v.trim().toUpperCase())
+            .where((v) => v.isNotEmpty)
+            .toSet();
+        Product? existing;
+        for (final current in box.values) {
+          final currentCodes = current.barcodes
+              .map((v) => v.trim().toUpperCase())
+              .where((v) => v.isNotEmpty)
+              .toSet();
+          if (currentCodes.intersection(incomingCodes).isNotEmpty) {
+            existing = current;
+            break;
+          }
+        }
+        if (existing != null) {
+          throw Exception(
+            'Le produit existe déjà (code-barres correspondant : ${incomingCodes.intersection(existing.barcodes.map((v) => v.trim().toUpperCase()).toSet()).first}). Utilisez « Mise à jour » pour modifier ce produit.',
+          );
+        }
+        await box.put(product.id, ProductModel.fromEntity(product));
         count++;
       } catch (e) {
         throw Exception('Ligne $rowNumber invalide : ${e.toString().replaceFirst('Exception: ', '')}');

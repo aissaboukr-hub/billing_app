@@ -72,7 +72,7 @@ class PrinterHelper {
   }
 
   Future<void> printText(String text) async {
-    if (!_isConnected) return;
+    if (!_isConnected) throw Exception('Imprimante non connectée.');
 
     // Simple text printing
     // We can use bytes for advanced formatting
@@ -100,7 +100,60 @@ class PrinterHelper {
       // ASCII bytes.
       List<int> bytes = text.codeUnits;
       await PrintBluetoothThermal.writeBytes(bytes);
+    } else {
+      _isConnected = false;
+      throw Exception('La connexion à l’imprimante a été perdue.');
     }
+  }
+
+  Future<void> printHistory({
+    required List<Map<String, dynamic>> history,
+  }) async {
+    if (!_isConnected) throw Exception('Imprimante non connectée.');
+    final connected = await PrintBluetoothThermal.connectionStatus;
+    if (!connected) {
+      _isConnected = false;
+      throw Exception('La connexion à l’imprimante a été perdue.');
+    }
+
+    final bytes = <int>[...EscPos.init, ...EscPos.alignCenter, ...EscPos.boldOn];
+    bytes.addAll(_textToBytes('HISTORIQUE DES OPERATIONS'));
+    bytes.addAll(EscPos.lineFeed);
+    bytes.addAll(EscPos.boldOff);
+    bytes.addAll(_textToBytes('--------------------------------'));
+    bytes.addAll(EscPos.lineFeed);
+    bytes.addAll(EscPos.alignLeft);
+
+    for (final operation in history) {
+      final date = operation['date']?.toString() ?? '';
+      final type = operation['type']?.toString() ?? 'Opération';
+      final total = operation['total']?.toString() ?? '0';
+      bytes.addAll(_textToBytes('$type | $date'));
+      bytes.addAll(EscPos.lineFeed);
+      bytes.addAll(_textToBytes('Total: $total DA'));
+      bytes.addAll(EscPos.lineFeed);
+      final error = operation['error']?.toString() ?? '';
+      if (error.isNotEmpty) {
+        bytes.addAll(_textToBytes('ERREUR: $error'));
+        bytes.addAll(EscPos.lineFeed);
+      }
+      final items = (operation['items'] as List?) ?? const [];
+      for (final rawItem in items) {
+        final item = Map<String, dynamic>.from(rawItem as Map);
+        final name = item['produit']?.toString() ?? '';
+        final qty = item['quantite']?.toString() ?? '0';
+        final lineTotal = item['total']?.toString() ?? '0';
+        var line = '$qty x $name : $lineTotal DA';
+        if (line.length > 46) line = line.substring(0, 46);
+        bytes.addAll(_textToBytes(line));
+        bytes.addAll(EscPos.lineFeed);
+      }
+      bytes.addAll(_textToBytes('--------------------------------'));
+      bytes.addAll(EscPos.lineFeed);
+    }
+    bytes.addAll(EscPos.lineFeed);
+    bytes.addAll(EscPos.lineFeed);
+    await PrintBluetoothThermal.writeBytes(bytes);
   }
 
   Future<void> printReceipt({
@@ -112,7 +165,12 @@ class PrinterHelper {
     required double total,
     required String footer,
   }) async {
-    if (!_isConnected) return;
+    if (!_isConnected) throw Exception('Imprimante non connectée.');
+    final connected = await PrintBluetoothThermal.connectionStatus;
+    if (!connected) {
+      _isConnected = false;
+      throw Exception('La connexion à l’imprimante a été perdue.');
+    }
 
     // Construct ESC/POS bytes manually or using helper
     List<int> bytes = [];
