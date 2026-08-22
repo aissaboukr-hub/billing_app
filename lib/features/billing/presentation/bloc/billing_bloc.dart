@@ -88,29 +88,24 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
       PrintReceiptEvent event, Emitter<BillingState> emit) async {
     final printerHelper = PrinterHelper();
 
-    if (!printerHelper.isConnected) {
-      final savedMac = HiveDatabase.settingsBox.get('printer_mac');
-      if (savedMac != null) {
-        final connected = await printerHelper.connect(savedMac);
-        if (!connected) {
-          emit(state.copyWith(
-              error: 'Impossible de connecter automatiquement l’imprimante !', clearError: false));
-          emit(state.copyWith(clearError: true));
-          return;
-        }
-      } else {
-        emit(state.copyWith(
-            error: 'Imprimante non connectée et aucune imprimante enregistrée !',
-            clearError: false));
-        emit(state.copyWith(clearError: true));
-        return;
-      }
-    }
-
     emit(state.copyWith(
-        isPrinting: true, printSuccess: false, clearError: true));
+      isPrinting: true,
+      printSuccess: false,
+      clearError: true,
+    ));
 
     try {
+      if (!printerHelper.isConnected) {
+        final savedMac = HiveDatabase.settingsBox.get('printer_mac');
+        if (savedMac == null) {
+          throw Exception('Imprimante non connectée et aucune imprimante enregistrée !');
+        }
+        final connected = await printerHelper.connect(savedMac);
+        if (!connected) {
+          throw Exception('Impossible de connecter automatiquement l’imprimante !');
+        }
+      }
+
       final items = state.cartItems
           .map((item) => {
                 'name': item.product.name,
@@ -121,21 +116,34 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
           .toList();
 
       await printerHelper.printReceipt(
-          shopName: event.shopName,
-          address1: event.address1,
-          address2: event.address2,
-          phone: event.phone,
-          items: items,
-          total: state.totalAmount,
-          footer: event.footer);
+        shopName: event.shopName,
+        address1: event.address1,
+        address2: event.address2,
+        phone: event.phone,
+        items: items,
+        total: state.totalAmount,
+        footer: event.footer,
+      );
 
-      await HistoryService.addSale(items: state.cartItems, total: state.totalAmount);
+      await HistoryService.addSale(
+        items: state.cartItems,
+        total: state.totalAmount,
+      );
       emit(state.copyWith(isPrinting: false, printSuccess: true));
     } catch (e) {
+      final errorMessage = e.toString().replaceFirst('Exception: ', '');
+      // Une impression échouée est également une opération historique.
+      await HistoryService.addPrintFailure(
+        items: state.cartItems,
+        total: state.totalAmount,
+        error: errorMessage,
+      );
       emit(state.copyWith(
-          isPrinting: false, error: 'Échec de l’impression : $e', clearError: false));
-      // Reset error instantly avoids sticky error
-      emit(state.copyWith(clearError: true));
+        isPrinting: false,
+        error: 'Échec de l’impression : $errorMessage',
+        clearError: false,
+      ));
     }
   }
+
 }

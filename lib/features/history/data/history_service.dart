@@ -60,5 +60,29 @@ class HistoryService {
     await HiveDatabase.settingsBox.put(_key, history);
   }
 
+  static Future<void> addPrintFailure({
+    required List<CartItem> items,
+    required double total,
+    required String error,
+  }) async {
+    final history = getAll();
+    history.insert(0, {
+      'id': _uuid.v4(),
+      'type': 'Échec impression',
+      'date': DateTime.now().toIso8601String(),
+      'total': total,
+      'currency': 'DZD',
+      'error': error,
+      'items': items.map<Map<String, dynamic>>((CartItem item) => <String, dynamic>{
+        'produit': item.product.name,
+        'codeBarres': item.product.barcodeDisplay,
+        'quantite': item.quantity,
+        'prixUnitaire': item.product.price,
+        'total': item.total,
+      }).toList(),
+    });
+    await HiveDatabase.settingsBox.put(_key, history);
+  }
+
   static Future<void> clear() async => HiveDatabase.settingsBox.delete(_key);
 }

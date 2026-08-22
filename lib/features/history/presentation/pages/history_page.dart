@@ -67,6 +67,17 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
+  Future<void> _shareExcel() async {
+    try {
+      await DataTransferService.shareHistoryExcel(history: _filteredHistory);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Fichier Excel prêt à être partagé.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString()), backgroundColor: Colors.red));
+    }
+  }
+
   Future<void> _syncGoogleSheets() async {
     final endpoint = HiveDatabase.settingsBox.get('google_sheets_export_url', defaultValue: '') as String;
     try {
@@ -98,6 +109,8 @@ class _HistoryPageState extends State<HistoryPage> {
             Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _exportExcel, icon: const Icon(Icons.table_view), label: const Text('Excel'))),
             const SizedBox(width: 8),
             Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _syncGoogleSheets, icon: const Icon(Icons.cloud_upload), label: const Text('Google Sheets'))),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _shareExcel, icon: const Icon(Icons.share), label: const Text('Partager Excel'))),
           ]),
         ),
         Expanded(
@@ -126,6 +139,14 @@ class _HistoryPageState extends State<HistoryPage> {
                                 title: Text('${(rawItem as Map)['quantite'] ?? 0} × ${rawItem['produit'] ?? ''}'),
                                 subtitle: Text('Code-barres : ${rawItem['codeBarres'] ?? ''}'),
                                 trailing: Text(AppFormatters.price(((rawItem['total'] as num?)?.toDouble() ?? 0))),
+                              ),
+                            if ((operation['error'] ?? '').toString().isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text('Erreur : ${operation['error']}', style: const TextStyle(color: Colors.red)),
+                                ),
                               ),
                             const Divider(height: 1),
                             Padding(padding: const EdgeInsets.all(12), child: Align(alignment: Alignment.centerRight, child: Text('Total : ${AppFormatters.price(total)}', style: const TextStyle(fontWeight: FontWeight.bold)))),
