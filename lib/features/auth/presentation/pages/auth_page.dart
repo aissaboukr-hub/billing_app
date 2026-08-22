@@ -108,7 +108,7 @@ class _AuthPageState extends State<AuthPage> {
                               : const Icon(Icons.login),
                           label: const Text('Se connecter'),
                         ),
-                        
+                     
                       ],
                     ),
                   ),
