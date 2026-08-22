@@ -108,6 +108,27 @@ class _AuthPageState extends State<AuthPage> {
                               : const Icon(Icons.login),
                           label: const Text('Se connecter'),
                         ),
+                        const SizedBox(height: 18),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withValues(alpha: .08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Column(
+                            children: [
+                              Text('Compte administrateur par défaut',
+                                  style: TextStyle(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 4),
+                              Text('Identifiant : admin'),
+                              Text(r'Mot de passe initial : Admin@1234'),
+                              SizedBox(height: 4),
+                              Text('Après réinitialisation, l’administrateur peut imposer un nouveau mot de passe.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(fontSize: 11)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                   ),

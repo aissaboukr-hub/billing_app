@@ -20,6 +20,6 @@ class _ImportExportPageState extends State<ImportExportPage> {
     FilledButton.icon(onPressed: _loading ? null : () { if (_url.text.trim().isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Saisissez un lien Google Sheets.'))); return; } _run(() => DataTransferService.importProductsFromGoogleSheets(_url.text)); }, icon: const Icon(Icons.cloud_download), label: const Text('Importer depuis Google Sheets')),
     const SizedBox(height: 28),
     const Text('Remarque', style: TextStyle(fontWeight: FontWeight.bold)), const SizedBox(height: 6),
-    const Text('Pour l’import Google Sheets, la feuille doit être accessible en lecture. La feuille doit contenir exactement 4 colonnes, dans cet ordre : Code-barres 1, Code-barres 2, Nom, Prix. Aucune autre colonne n'est autorisée. Code-barres 2 est facultatif.'),
+    const Text("Pour l’import Google Sheets, la feuille doit être accessible en lecture. La feuille doit contenir exactement 4 colonnes, dans cet ordre : Code-barres 1, Code-barres 2, Nom, Prix. Aucune autre colonne n’est autorisée. Code-barres 2 est facultatif."),
   ]));
 }

@@ -17,22 +17,29 @@ class DataTransferService {
   }
 
   static const List<String> _productImportHeaders = [
-    'code-barres 1',
-    'code-barres 2',
-    'nom',
-    'prix',
+    'Code-barres 1',
+    'Code-barres 2',
+    'Nom',
+    'Prix',
   ];
 
   static void _validateProductHeaders(List<String> headers, {required String source}) {
-    final normalized = headers.map(_normalizeHeader).toList();
-    final expected = _productImportHeaders.map(_normalizeHeader).toList();
-
-    if (normalized.length != expected.length ||
-        List.generate(expected.length, (i) => normalized[i] == expected[i])
-                .contains(false)) {
+    final actual = headers.map((h) => h.trim()).toList();
+    if (actual.length != _productImportHeaders.length ||
+        List.generate(_productImportHeaders.length, (i) => actual[i] != _productImportHeaders[i])
+            .contains(true)) {
       throw Exception(
-        'Format $source invalide. Le fichier doit contenir exactement ces 4 colonnes, dans cet ordre : '
-        'Code-barres 1, Code-barres 2, Nom, Prix. Aucune autre colonne n'est autorisée.',
+        "Format $source invalide. Le fichier doit contenir exactement ces 4 colonnes, dans cet ordre : Code-barres 1, Code-barres 2, Nom, Prix. Aucune autre colonne n'est autorisée.",
+      );
+    }
+  }
+
+  static void _validateRowWidth(List<dynamic> row, int rowNumber, String source) {
+    if (row.length <= 4) return;
+    final hasExtraData = row.skip(4).any((cell) => _value(cell?.value).trim().isNotEmpty);
+    if (hasExtraData) {
+      throw Exception(
+        "Ligne $rowNumber invalide dans $source : aucune colonne supplémentaire n'est autorisée.",
       );
     }
   }
@@ -44,13 +51,14 @@ class DataTransferService {
     if (sheet.rows.isEmpty) throw Exception('Le fichier Excel est vide.');
 
     final headers = sheet.rows.first
-        .map((c) => _normalizeHeader(_value(c?.value)))
+        .map((c) => _value(c?.value).trim())
         .toList();
     _validateProductHeaders(headers, source: 'Excel');
 
     int imported = 0;
     for (final row in sheet.rows.skip(1)) {
       if (row.isEmpty) continue;
+      _validateRowWidth(row, sheet.rows.indexOf(row) + 1, 'Excel');
       String cell(int index) => index >= 0 && index < row.length
           ? _value(row[index]?.value).trim()
           : '';
@@ -104,11 +112,14 @@ class DataTransferService {
     final rows = _parseCsv(response.body);
     if (rows.isEmpty) throw Exception('La feuille Google Sheets est vide.');
 
-    final headers = rows.first.map(_normalizeHeader).toList();
+    final headers = rows.first.map((value) => value.trim()).toList();
     _validateProductHeaders(headers, source: 'Google Sheets');
 
     int imported = 0;
     for (final row in rows.skip(1)) {
+      if (row.length > 4 && row.skip(4).any((cell) => cell.trim().isNotEmpty)) {
+        throw Exception("Ligne ${rows.indexOf(row) + 1} invalide dans Google Sheets : aucune colonne supplémentaire n'est autorisée.");
+      }
       String cell(int index) =>
           index >= 0 && index < row.length ? row[index].trim() : '';
 
@@ -209,21 +220,6 @@ class DataTransferService {
     final gid = uri.queryParameters['gid'];
     final params = {'tqx': 'out:csv', if (gid != null) 'gid': gid};
     return Uri.parse('https://docs.google.com/spreadsheets/d/${match.group(1)}/gviz/tq').replace(queryParameters: params);
-  }
-
-  /// Normalise uniquement les caractères de présentation des en-têtes.
-  /// Le format d'import reste strict : 4 colonnes, dans l'ordre exact.
-  static String _normalizeHeader(String value) {
-    return value
-        .trim()
-        .toLowerCase()
-        .replaceAll('é', 'e')
-        .replaceAll('è', 'e')
-        .replaceAll('ê', 'e')
-        .replaceAll('à', 'a')
-        .replaceAll(RegExp(r'[._]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
   }
 
   static String _value(CellValue? value) => switch (value) {
