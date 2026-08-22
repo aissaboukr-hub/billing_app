@@ -101,11 +101,17 @@ class DataTransferService {
       _upsertProducts(await _readGoogleRows(link));
 
   static Product _productFromRow(List<String> row, {String? id, int stock = 0}) {
-    final barcode1 = row[0].trim();
-    final barcode2 = row[1].trim();
+    var barcode1 = row[0].trim();
+    var barcode2 = row[1].trim();
+    // Certains fichiers ont un seul code placé dans la deuxième colonne.
+    // Dans ce cas, on le considère comme le code principal.
+    if (barcode1.isEmpty && barcode2.isNotEmpty) {
+      barcode1 = barcode2;
+      barcode2 = '';
+    }
     final name = row[2].trim();
     final priceText = row[3].trim().replaceAll(',', '.');
-    if (barcode1.isEmpty) throw Exception('Code-barres 1 est obligatoire.');
+    if (barcode1.isEmpty) throw Exception('Au moins un code-barres est obligatoire (Code-barres 1 ou Code-barres 2).');
     if (name.isEmpty) throw Exception('Nom est obligatoire.');
     final price = double.tryParse(priceText);
     if (price == null) throw Exception('Prix doit être un nombre.');
