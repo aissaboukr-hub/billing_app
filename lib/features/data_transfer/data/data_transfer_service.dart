@@ -16,28 +16,37 @@ class DataTransferService {
     return importProductsFromBytes(result.files.single.bytes!);
   }
 
+  static const List<String> _productImportHeaders = [
+    'code-barres 1',
+    'code-barres 2',
+    'nom',
+    'prix',
+  ];
+
+  static void _validateProductHeaders(List<String> headers, {required String source}) {
+    final normalized = headers.map(_normalizeHeader).toList();
+    final expected = _productImportHeaders.map(_normalizeHeader).toList();
+
+    if (normalized.length != expected.length ||
+        List.generate(expected.length, (i) => normalized[i] == expected[i])
+                .contains(false)) {
+      throw Exception(
+        'Format $source invalide. Le fichier doit contenir exactement ces 4 colonnes, dans cet ordre : '
+        'Code-barres 1, Code-barres 2, Nom, Prix. Aucune autre colonne n'est autorisée.',
+      );
+    }
+  }
+
   static Future<int> importProductsFromBytes(List<int> bytes) async {
     final workbook = Excel.decodeBytes(bytes);
     if (workbook.tables.isEmpty) throw Exception('Aucune feuille Excel trouvée.');
     final sheet = workbook.tables.values.first;
     if (sheet.rows.isEmpty) throw Exception('Le fichier Excel est vide.');
+
     final headers = sheet.rows.first
         .map((c) => _normalizeHeader(_value(c?.value)))
         .toList();
-    int find(List<String> names) => headers.indexWhere(
-          (h) => names.any((n) => h == _normalizeHeader(n) || h.contains(_normalizeHeader(n))),
-        );
-
-    final nameCol = find(['désignation', 'designation', 'nom', 'produit', 'name']);
-    final barcodeCols = _findBarcodeColumns(headers);
-    final priceCol = find(['prix', 'price', 'tarif']);
-    final stockCol = find(['stock', 'quantité', 'quantite', 'quantity']);
-
-    if (nameCol < 0 || barcodeCols.isEmpty) {
-      throw Exception(
-        'Colonnes obligatoires introuvables : Désignation/Nom et au moins un Code-barres.',
-      );
-    }
+    _validateProductHeaders(headers, source: 'Excel');
 
     int imported = 0;
     for (final row in sheet.rows.skip(1)) {
@@ -46,16 +55,27 @@ class DataTransferService {
           ? _value(row[index]?.value).trim()
           : '';
 
-      final name = cell(nameCol);
-      final barcode1 = cell(barcodeCols[0]);
-      final barcode2 =
-          barcodeCols.length > 1 ? cell(barcodeCols[1]) : '';
+      final barcode1 = cell(0);
+      final barcode2 = cell(1);
+      final name = cell(2);
+      final priceText = cell(3).replaceAll(',', '.');
 
-      if (name.isEmpty || barcode1.isEmpty) continue;
+      // Les lignes complètement vides sont ignorées.
+      if (barcode1.isEmpty && barcode2.isEmpty && name.isEmpty && priceText.isEmpty) {
+        continue;
+      }
 
-      final price =
-          double.tryParse(cell(priceCol).replaceAll(',', '.')) ?? 0;
-      final stock = int.tryParse(cell(stockCol)) ?? 0;
+      if (barcode1.isEmpty) {
+        throw Exception('Ligne ${imported + 2} invalide : Code-barres 1 est obligatoire.');
+      }
+      if (name.isEmpty) {
+        throw Exception('Ligne ${imported + 2} invalide : Nom est obligatoire.');
+      }
+
+      final price = double.tryParse(priceText);
+      if (price == null) {
+        throw Exception('Ligne ${imported + 2} invalide : Prix doit être un nombre.');
+      }
 
       final product = Product(
         id: const Uuid().v4(),
@@ -63,7 +83,8 @@ class DataTransferService {
         barcode: barcode1,
         barcode2: barcode2,
         price: price,
-        stock: stock,
+        // Le stock n'existe volontairement pas dans le fichier Excel.
+        stock: 0,
       );
       await HiveDatabase.productBox.put(
         product.id,
@@ -77,44 +98,48 @@ class DataTransferService {
   static Future<int> importProductsFromGoogleSheets(String link) async {
     final uri = _googleCsvUri(link);
     final response = await http.get(uri).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) throw Exception('Impossible de lire Google Sheets. Vérifiez que la feuille est accessible en lecture.');
+    if (response.statusCode != 200) {
+      throw Exception('Impossible de lire Google Sheets. Vérifiez que la feuille est accessible en lecture.');
+    }
     final rows = _parseCsv(response.body);
     if (rows.isEmpty) throw Exception('La feuille Google Sheets est vide.');
+
     final headers = rows.first.map(_normalizeHeader).toList();
-    int find(List<String> names) => headers.indexWhere(
-          (h) => names.any((n) => h == _normalizeHeader(n) || h.contains(_normalizeHeader(n))),
-        );
-
-    final nameCol = find(['désignation', 'designation', 'nom', 'produit', 'name']);
-    final barcodeCols = _findBarcodeColumns(headers);
-    final priceCol = find(['prix', 'price', 'tarif']);
-    final stockCol = find(['stock', 'quantité', 'quantite', 'quantity']);
-
-    if (nameCol < 0 || barcodeCols.isEmpty) {
-      throw Exception(
-        'Colonnes obligatoires introuvables dans Google Sheets : Désignation/Nom et au moins un Code-barres.',
-      );
-    }
+    _validateProductHeaders(headers, source: 'Google Sheets');
 
     int imported = 0;
     for (final row in rows.skip(1)) {
       String cell(int index) =>
           index >= 0 && index < row.length ? row[index].trim() : '';
 
-      final name = cell(nameCol);
-      final barcode1 = cell(barcodeCols[0]);
-      final barcode2 =
-          barcodeCols.length > 1 ? cell(barcodeCols[1]) : '';
+      final barcode1 = cell(0);
+      final barcode2 = cell(1);
+      final name = cell(2);
+      final priceText = cell(3).replaceAll(',', '.');
 
-      if (name.isEmpty || barcode1.isEmpty) continue;
+      if (barcode1.isEmpty && barcode2.isEmpty && name.isEmpty && priceText.isEmpty) {
+        continue;
+      }
+
+      if (barcode1.isEmpty) {
+        throw Exception('Ligne ${imported + 2} invalide : Code-barres 1 est obligatoire.');
+      }
+      if (name.isEmpty) {
+        throw Exception('Ligne ${imported + 2} invalide : Nom est obligatoire.');
+      }
+
+      final price = double.tryParse(priceText);
+      if (price == null) {
+        throw Exception('Ligne ${imported + 2} invalide : Prix doit être un nombre.');
+      }
 
       final product = Product(
         id: const Uuid().v4(),
         name: name,
         barcode: barcode1,
         barcode2: barcode2,
-        price: double.tryParse(cell(priceCol).replaceAll(',', '.')) ?? 0,
-        stock: int.tryParse(cell(stockCol)) ?? 0,
+        price: price,
+        stock: 0,
       );
       await HiveDatabase.productBox.put(
         product.id,
@@ -186,8 +211,8 @@ class DataTransferService {
     return Uri.parse('https://docs.google.com/spreadsheets/d/${match.group(1)}/gviz/tq').replace(queryParameters: params);
   }
 
-  /// Normalise les en-têtes Excel/Google Sheets pour reconnaître
-  /// `Code-barres 1`, `Code-barres 2`, `Barcode1`, `EAN 1`, etc.
+  /// Normalise uniquement les caractères de présentation des en-têtes.
+  /// Le format d'import reste strict : 4 colonnes, dans l'ordre exact.
   static String _normalizeHeader(String value) {
     return value
         .trim()
@@ -196,74 +221,9 @@ class DataTransferService {
         .replaceAll('è', 'e')
         .replaceAll('ê', 'e')
         .replaceAll('à', 'a')
-        .replaceAll(RegExp(r'[._-]+'), ' ')
+        .replaceAll(RegExp(r'[._]+'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-  }
-
-  /// Retourne au maximum deux colonnes de code-barres.
-  ///
-  /// Priorité aux noms explicites (Barcode 1 / Barcode 2, EAN 1 / EAN 2,
-  /// Code-barres 1 / Code-barres 2). Si le fichier contient simplement deux
-  /// colonnes nommées `Code-barres`, elles sont prises dans leur ordre.
-  static List<int> _findBarcodeColumns(List<String> headers) {
-    final first = <String>[
-      'code barres 1',
-      'code barre 1',
-      'barcode 1',
-      'barcode1',
-      'ean 1',
-      'ean1',
-      'code 1',
-      'code1',
-    ];
-    final second = <String>[
-      'code barres 2',
-      'code barre 2',
-      'barcode 2',
-      'barcode2',
-      'ean 2',
-      'ean2',
-      'code 2',
-      'code2',
-    ];
-
-    int findExact(List<String> names) {
-      for (final name in names) {
-        final index = headers.indexOf(_normalizeHeader(name));
-        if (index >= 0) return index;
-      }
-      return -1;
-    }
-
-    final firstIndex = findExact(first);
-    final secondIndex = findExact(second);
-
-    final generic = <int>[];
-    for (var i = 0; i < headers.length; i++) {
-      final h = headers[i];
-      if (h.contains('code barres') ||
-          h.contains('code barre') ||
-          h.contains('barcode') ||
-          h == 'ean') {
-        generic.add(i);
-      }
-    }
-
-    final result = <int>[];
-    if (firstIndex >= 0) result.add(firstIndex);
-    if (secondIndex >= 0 && !result.contains(secondIndex)) {
-      result.add(secondIndex);
-    }
-
-    // Cas fréquent : deux colonnes ont exactement le même en-tête
-    // `Code-barres`.
-    for (final index in generic) {
-      if (result.length >= 2) break;
-      if (!result.contains(index)) result.add(index);
-    }
-
-    return result.take(2).toList();
   }
 
   static String _value(CellValue? value) => switch (value) {

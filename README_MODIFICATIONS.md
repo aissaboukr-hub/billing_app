@@ -14,7 +14,7 @@
 
 ## 3. Import produits
 - Excel `.xlsx` et `.xls` avec `excel_community`.
-- Détection des colonnes Désignation/Nom, Code-barres, Prix et Stock.
+- Format d’import strict : exactement 4 colonnes, dans cet ordre : `Code-barres 1`, `Code-barres 2`, `Nom`, `Prix`. Aucune autre colonne n’est autorisée. `Code-barres 2` est facultatif. Le stock est initialisé à 0.
 - Import Google Sheets via lien public/accessible en lecture (export CSV Google Visualization).
 
 ## 4. Export ventes
