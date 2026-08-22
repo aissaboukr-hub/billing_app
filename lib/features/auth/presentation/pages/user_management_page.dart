@@ -12,6 +12,42 @@ class UserManagementPage extends StatefulWidget {
 class _UserManagementPageState extends State<UserManagementPage> {
   final _auth = AuthService();
 
+  Future<void> _createUser() async {
+    final username = TextEditingController();
+    final password = TextEditingController();
+    final confirm = TextEditingController();
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Créer un utilisateur'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: username, decoration: const InputDecoration(labelText: "Nom d'utilisateur")),
+          const SizedBox(height: 12),
+          TextField(controller: password, obscureText: true, decoration: const InputDecoration(labelText: 'Mot de passe')),
+          const SizedBox(height: 12),
+          TextField(controller: confirm, obscureText: true, decoration: const InputDecoration(labelText: 'Confirmer le mot de passe')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Annuler')),
+          FilledButton(onPressed: () async {
+            if (password.text != confirm.text) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Les mots de passe ne correspondent pas.')));
+              return;
+            }
+            try {
+              await _auth.register(username.text, password.text);
+              if (context.mounted) Navigator.pop(context, true);
+            } catch (e) {
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+            }
+          }, child: const Text('Créer')),
+        ],
+      ),
+    );
+    username.dispose(); password.dispose(); confirm.dispose();
+    if (result == true && mounted) setState(() {});
+  }
+
   Future<void> _changePassword(String username) async {
     final controller = TextEditingController();
     final confirm = TextEditingController();
@@ -83,6 +119,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  Future<void> _unbindDevice(String username) async {
+    try {
+      await _auth.unbindUserDevice(username);
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Appareil dissocié.')));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))));
+    }
+  }
+
   Future<void> _changeRole(String username, String currentRole) async {
     final role = await showDialog<UserRole>(
       context: context,
@@ -129,6 +177,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gestion des utilisateurs'),
+        actions: [IconButton(onPressed: _createUser, icon: const Icon(Icons.person_add), tooltip: 'Créer un utilisateur')],
         leading: IconButton(
           icon: const Icon(Icons.chevron_left),
           onPressed: () => context.pop(),
@@ -153,14 +202,15 @@ class _UserManagementPageState extends State<UserManagementPage> {
                           : Icons.person),
                     ),
                     title: Text(username),
-                    subtitle: Text(
-                        role == 'admin' ? 'Administrateur' : 'Utilisateur'),
+                    subtitle: Text('${role == 'admin' ? 'Administrateur' : 'Utilisateur'} • ${user['deviceBound'] == true ? 'Appareil associé' : 'Appareil non associé'}'),
                     trailing: PopupMenuButton<String>(
                       onSelected: (value) {
                         if (value == 'password') {
                           _changePassword(username);
                         } else if (value == 'role') {
                           _changeRole(username, role);
+                        } else if (value == 'unbind') {
+                          _unbindDevice(username);
                         }
                       },
                       itemBuilder: (_) => const [
@@ -178,6 +228,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             title: Text('Modifier le rôle'),
                           ),
                         ),
+                        if (user['deviceBound'] == true)
+                          const PopupMenuItem(
+                            value: 'unbind',
+                            child: ListTile(
+                              leading: Icon(Icons.phonelink_erase),
+                              title: Text('Dissocier l’appareil'),
+                            ),
+                          ),
                       ],
                     ),
                   ),
