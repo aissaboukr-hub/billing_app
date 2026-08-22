@@ -100,9 +100,11 @@ class DataTransferService {
   static Future<int> updateProductsFromGoogleSheets(String link) async =>
       _upsertProducts(await _readGoogleRows(link));
 
+  static String _normalizeBarcode(String value) => value.trim().toUpperCase();
+
   static Product _productFromRow(List<String> row, {String? id, int stock = 0}) {
-    var barcode1 = row[0].trim();
-    var barcode2 = row[1].trim();
+    var barcode1 = _normalizeBarcode(row[0]);
+    var barcode2 = _normalizeBarcode(row[1]);
     // Certains fichiers ont un seul code placé dans la deuxième colonne.
     // Dans ce cas, on le considère comme le code principal.
     if (barcode1.isEmpty && barcode2.isNotEmpty) {

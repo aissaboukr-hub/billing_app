@@ -37,6 +37,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _douchetteFocusNode = FocusNode(debugLabel: 'douchette_barcode');
   final StringBuffer _douchetteBuffer = StringBuffer();
+  // Garde automatiquement la liste des ventes positionnée sur le dernier article scanné.
+  final ScrollController _cartScrollController = ScrollController();
   Timer? _douchetteInputTimer;
   static const Duration _douchetteInputTimeout = Duration(milliseconds: 120);
 
@@ -78,6 +80,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _douchetteFocusNode.dispose();
     _scannerController.dispose();
     _searchController.dispose();
+    _cartScrollController.dispose();
     super.dispose();
   }
 
@@ -111,6 +114,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       "'": '4',
     };
 
+    // Les codes peuvent être alphanumériques (ex. TECHC00016369).
+    // Les lettres ne doivent jamais être filtrées.
     return azertyNumberRow[character] ?? character.toUpperCase();
   }
 
@@ -261,6 +266,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           return cartChanged || (errorChanged && current.error != null);
         },
         listener: (context, state) async {
+          // Après chaque ajout/modification, descendre automatiquement en bas
+          // afin que le dernier article scanné soit toujours visible.
+          if (state.cartItems.isNotEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted || !_cartScrollController.hasClients) return;
+              _cartScrollController.animateTo(
+                _cartScrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOut,
+              );
+            });
+          }
+
           if (state.error != null) {
             await SystemSound.play(SystemSoundType.alert);
             _showTopBanner(state.error!, error: true);
@@ -916,6 +934,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   }
 
                   return ListView.separated(
+                    controller: _cartScrollController,
                     padding: const EdgeInsets.only(
                         left: 15, right: 15, top: 16, bottom: 100),
                     itemCount: state.cartItems.length,

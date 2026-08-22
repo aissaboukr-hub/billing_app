@@ -129,7 +129,10 @@ class BillingBloc extends Bloc<BillingEvent, BillingState> {
         items: state.cartItems,
         total: state.totalAmount,
       );
-      emit(state.copyWith(isPrinting: false, printSuccess: true));
+      // Une vente imprimée est terminée : vider le panier pour que la prochaine
+      // vente commence avec une liste vide. En cas d'échec d'impression, le
+      // panier est conservé afin de permettre une nouvelle tentative.
+      emit(const BillingState(printSuccess: true));
     } catch (e) {
       final errorMessage = e.toString().replaceFirst('Exception: ', '');
       // Une impression échouée est également une opération historique.

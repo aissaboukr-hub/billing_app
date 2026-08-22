@@ -59,7 +59,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   void _clearDateFilter() => setState(() => _dateRange = null);
 
-  Future<void> _printHistory() async {
+  Future<void> _printOperation(Map<String, dynamic> operation) async {
     final printer = PrinterHelper();
     try {
       if (!printer.isConnected) {
@@ -70,12 +70,16 @@ class _HistoryPageState extends State<HistoryPage> {
         final connected = await printer.connect(savedMac);
         if (!connected) throw Exception('Impossible de connecter l’imprimante.');
       }
-      await printer.printHistory(history: _filteredHistory);
+      await printer.printHistory(history: [operation]);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Historique imprimé avec succès.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Opération imprimée avec succès.')));
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceFirst('Exception: ', '')), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -118,8 +122,6 @@ class _HistoryPageState extends State<HistoryPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
           child: Row(children: [
-            Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _printHistory, icon: const Icon(Icons.print), label: const Text('Imprimer'))),
-            const SizedBox(width: 8),
             Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _syncGoogleSheets, icon: const Icon(Icons.cloud_upload), label: const Text('Google Sheets'))),
             const SizedBox(width: 8),
             Expanded(child: OutlinedButton.icon(onPressed: _filteredHistory.isEmpty ? null : _shareExcel, icon: const Icon(Icons.share), label: const Text('Partager Excel'))),
@@ -144,6 +146,11 @@ class _HistoryPageState extends State<HistoryPage> {
                           leading: const CircleAvatar(child: Icon(Icons.receipt_long)),
                           title: Text('${operation['type'] ?? 'Opération'} — ${AppFormatters.price(total)}', style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text('${_date('${operation['date'] ?? ''}')} • $count article(s)'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.print),
+                            tooltip: 'Imprimer cette opération',
+                            onPressed: () => _printOperation(operation),
+                          ),
                           children: [
                             for (final rawItem in items)
                               ListTile(
